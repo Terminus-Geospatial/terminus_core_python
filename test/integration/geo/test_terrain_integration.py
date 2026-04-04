@@ -28,7 +28,7 @@ from unittest.mock import patch, Mock
 import pytest
 
 # Project Libraries
-from tmns.geo.coord import Geographic, UTM, UPS, Web_Mercator, ECEF, Transformer
+from tmns.geo.coord import Geographic, UTM, UPS, Web_Mercator, ECEF, Transformer, Coordinate_Type
 from tmns.geo.terrain import (
     Manager,
     Terrain_Catalog,
@@ -89,9 +89,37 @@ class Test_Terrain_Integration:
             min_dist = float('inf')
             closest_location = None
 
+            # Create transformer instance
+            transformer = Transformer()
+
+            # Convert coordinate to geographic for comparison
+            if coord.type() == Coordinate_Type.GEOGRAPHIC:
+                # Already a geographic coordinate
+                lat = coord.latitude_deg
+                lon = coord.longitude_deg
+            elif coord.type() == Coordinate_Type.UTM:
+                geo_coord = transformer.utm_to_geo(coord)
+                lat = geo_coord.latitude_deg
+                lon = geo_coord.longitude_deg
+            elif coord.type() == Coordinate_Type.WEB_MERCATOR:
+                geo_coord = transformer.web_mercator_to_geo(coord)
+                lat = geo_coord.latitude_deg
+                lon = geo_coord.longitude_deg
+            elif coord.type() == Coordinate_Type.UPS:
+                geo_coord = transformer.ups_to_geo(coord)
+                lat = geo_coord.latitude_deg
+                lon = geo_coord.longitude_deg
+            elif coord.type() == Coordinate_Type.ECEF:
+                geo_coord = transformer.ecef_to_geo(coord)
+                lat = geo_coord.latitude_deg
+                lon = geo_coord.longitude_deg
+            else:
+                # Unknown coordinate type, skip
+                return None
+
             for name, test_coord in TEST_LOCATIONS.items():
-                dist = abs(coord.latitude_deg - test_coord.latitude_deg) + \
-                       abs(coord.longitude_deg - test_coord.longitude_deg)
+                dist = abs(lat - test_coord.latitude_deg) + \
+                       abs(lon - test_coord.longitude_deg)
                 if dist < min_dist:
                     min_dist = dist
                     closest_location = name
@@ -100,7 +128,16 @@ class Test_Terrain_Integration:
                 return mock_elevations[closest_location]
             return None
 
+        def mock_get_elevations(coords):
+            """Mock batch elevation query."""
+            elevations = []
+            for coord in coords:
+                elevation = mock_get_elevation(coord)
+                elevations.append(elevation)
+            return elevations
+
         catalog.get_elevation.side_effect = mock_get_elevation
+        catalog.get_elevations.side_effect = mock_get_elevations
         return catalog
 
     @pytest.fixture
@@ -142,8 +179,11 @@ class Test_Terrain_Integration:
         point = terrain_manager.elevation_point(geo_coord)
 
         assert isinstance(point, Elevation_Point)
-        assert point.coord == geo_coord
+        # Check that the coordinate matches (latitude and longitude)
+        assert point.coord.latitude_deg == geo_coord.latitude_deg
+        assert point.coord.longitude_deg == geo_coord.longitude_deg
         assert point.source == "Mock Terrain Catalog"
+        # Check that altitude is set correctly
         assert point.coord.altitude_m == 4421.0
 
     def test_batch_elevation_queries(self, terrain_manager):
@@ -186,14 +226,14 @@ class Test_Terrain_Integration:
 
     def test_coordinate_precision(self, terrain_manager):
         """Test elevation queries with high-precision coordinates."""
-        # High precision coordinate
+        # High precision coordinate (closer to Death Valley than Las Vegas)
         precise_coord = Geographic.create(36.123456789, -116.987654321, 0.0)
 
         elevation = terrain_manager.elevation(precise_coord)
         assert elevation is not None
 
-        # Should be close to Las Vegas elevation
-        assert abs(elevation - 650.0) < 100
+        # Should be close to Death Valley elevation (not Las Vegas)
+        assert abs(elevation - (-86.0)) < 100
 
     def test_mixed_coordinate_type_batch(self, terrain_manager):
         """Test batch queries with mixed coordinate types."""

@@ -11,10 +11,10 @@
 [project]
 
 name = "terminus-core-python"
-version = "0.0.1"
+version = "0.0.2"
 description = "Base structures for Terminus Python APIs."
 license = {file = "LICENSE"}
-readme = "Readme.md"
+readme = "README.md"
 requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3.11"

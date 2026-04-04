@@ -75,17 +75,11 @@ pytest test/unit/geo/test_coordinate.py::Test_EPSG_Manager::test_get_coordinate_
 #### Test Categories
 
 ```bash
-# Run only unit tests
-pytest -m unit
+# Run all tests (current behavior - all tests are unmarked)
+pytest
 
-# Run only integration tests
-pytest -m integration
-
-# Run tests excluding slow tests
-pytest -m "not slow"
-
-# Run slow tests only
-pytest -m slow
+# Note: Markers like -m unit, -m integration, -m slow are not yet implemented
+# All tests currently run by default since no markers are applied
 ```
 
 #### Coverage Reports
