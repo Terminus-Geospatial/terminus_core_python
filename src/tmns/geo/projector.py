@@ -18,11 +18,13 @@ Projector API - Abstract coordinate transformation interface
 
 # Python Standard Libraries
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List
 
 # Project Libraries
-from tmns.geo.coord import Geographic, Pixel
+from tmns.geo.coord import Geographic, Pixel, UTM
+from tmns.geo.terrain import elevation
 
 
 class Transformation_Type(Enum):
@@ -96,7 +98,7 @@ class Projector(ABC):
         self._destination_image_attrs.update(attrs)
 
 
-class Identity_Projection(Projector):
+class Identity(Projector):
     """Identity transformation - no coordinate change."""
 
     def __init__(self):
@@ -131,7 +133,7 @@ class Identity_Projection(Projector):
         return True
 
 
-class Affine_Projection(Projector):
+class Affine(Projector):
     """Affine transformation using transformation matrix."""
 
     def __init__(self):
@@ -214,3 +216,85 @@ class Affine_Projection(Projector):
     @property
     def is_identity(self) -> bool:
         return False
+
+
+@dataclass
+class GCP:
+    """Ground Control Point with coordinates in multiple systems."""
+
+    id: int
+    test_pixel: Pixel
+    reference_pixel: Pixel
+    geographic: Geographic
+    projected: UTM | None = None
+    error: float | None = None
+    enabled: bool = True
+
+    def __post_init__(self):
+        """Post-initialization validation."""
+        if self.id <= 0:
+            raise ValueError("GCP ID must be positive")
+
+    def to_dict(self):
+        """Convert GCP to dictionary."""
+        return {
+            'id': self.id,
+            'test_pixel': {
+                'x': self.test_pixel.x_px,
+                'y': self.test_pixel.y_px
+            },
+            'reference_pixel': {
+                'x': self.reference_pixel.x_px,
+                'y': self.reference_pixel.y_px
+            },
+            'geographic': {
+                'latitude': self.geographic.latitude_deg,
+                'longitude': self.geographic.longitude_deg,
+                'elevation': self.geographic.altitude_m
+            },
+            'projected': {
+                'easting': self.projected.easting_m,
+                'northing': self.projected.northing_m,
+                'elevation': self.projected.altitude_m,
+                'crs': self.projected.crs
+            } if self.projected else None,
+            'error': self.error,
+            'enabled': self.enabled
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """Create GCP from dictionary."""
+        test_pixel = Pixel.create(data['test_pixel']['x'], data['test_pixel']['y'])
+        ref_pixel = Pixel.create(data['reference_pixel']['x'], data['reference_pixel']['y'])
+
+        geo_data = data['geographic']
+        geographic = Geographic.create(
+            geo_data['latitude'],
+            geo_data['longitude'],
+            geo_data.get('elevation')
+        )
+
+        projected = None
+        if data.get('projected'):
+            proj_data = data['projected']
+            projected = UTM.create(
+                proj_data['easting'],
+                proj_data['northing'],
+                proj_data.get('crs', 'EPSG:3857'),
+                proj_data.get('elevation')
+            )
+
+        return cls(
+            id=data['id'],
+            test_pixel=test_pixel,
+            reference_pixel=ref_pixel,
+            geographic=geographic,
+            projected=projected,
+            error=data.get('error'),
+            enabled=data.get('enabled', True)
+        )
+
+    def __str__(self):
+        """String representation."""
+        return f"GCP {self.id}: Test{self.test_pixel} → Geo{self.geographic}"

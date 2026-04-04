@@ -5,31 +5,6 @@ Terminus-Core Python is intended to be a base-level Python API for doing geospat
 
 ## Current Migration Tasks (High Priority)
 
-### ✅ Completed
-- [x] Project analysis and dependency review
-- [x] Create directory structure: src/tmns/geo/
-- [x] Migrate coordinate.py to src/tmns/geo/coordinate.py
-- [x] Migrate terrain.py to src/tmns/geo/terrain.py
-- [x] Migrate datum.py to src/tmns/geo/datum.py
-- [x] Migrate projector.py to src/tmns/geo/projector.py
-- [x] Update terminus pyproject.toml with dependencies from pointy
-- [x] Create generate_version.py script for terminus-core
-- [x] Setup _version.py and __init__.py in terminus-core
-- [x] Add terminus-core as dependency to pointy-mcpointface
-- [x] Migrate unit tests from pointy to terminus-core
-- [x] Migrate integration tests from pointy to terminus-core
-- [x] Update all imports in pointy to use terminus-core
-- [x] Apply proper IP headers and coding standards
-- [x] Create pytest configuration and test infrastructure
-- [x] Refactor coordinate module into smaller, focused files
-- [x] Rename coordinate module to coord for brevity
-- [x] Implement full imports throughout codebase
-- [x] Configure pytest with coverage as opt-in only
-- [x] Create comprehensive README with testing guide
-- [x] Add enhanced logging with filename and line numbers
-- [x] Fix EPSG Manager to return Coordinate_Type enum
-- [x] Update all test imports for new coord module structure
-
 ### 🔄 In Progress
 - [ ] Fix remaining terrain test failures (22 failed tests remaining)
 - [ ] Fix missing Pixel import in terrain tests
@@ -87,10 +62,13 @@ Terminus-Core Python is intended to be a base-level Python API for doing geospat
 
 ### Image Georeferencing
 - [ ] **Ground Control Points (GCP)**
-  - GCP management and validation
-  - Automatic GCP generation
-  - GCP accuracy assessment
-  - GCP-based transformation models
+  - [x] GCP management and validation - migrated to terminus_core_python
+  - [ ] Consider adding back elevation auto-population feature
+  - [ ] Consider adding back GDAL integration (to_gdal_format method)
+  - [ ] Consider adding back backward compatibility properties
+  - [ ] Automatic GCP generation
+  - [ ] GCP accuracy assessment
+  - [ ] GCP-based transformation models
 
 - [ ] **Image Registration**
   - Multi-image registration tools

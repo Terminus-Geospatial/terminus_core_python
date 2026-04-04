@@ -43,7 +43,7 @@ from tmns.geo.coord import (
 from tmns.geo.datum import Datum, Vertical_Datum
 
 # Export projector components
-from tmns.geo.projector import Projector, Identity_Projection, Affine_Projection, Transformation_Type
+from tmns.geo.proj import Projector, Identity, Affine, RPC, TPS, GCP, Transformation_Type
 
 # Export terrain components
 from tmns.geo.terrain import (
@@ -77,9 +77,12 @@ __all__ = [
 
     # Projector types
     'Projector',
-    'Identity_Projection',
-    'Affine_Projection',
+    'Identity',
+    'Affine',
+    'RPC',
+    'TPS',
     'Transformation_Type',
+    'GCP',
 
     # Terrain types
     'Elevation_Point',
