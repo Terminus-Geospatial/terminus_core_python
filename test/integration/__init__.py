@@ -1,6 +1,6 @@
 #**************************** INTELLECTUAL PROPERTY RIGHTS ****************************#
 #*                                                                                    *#
-#*                           Copyright (c) 2025 Terminus LLC                          *#
+#*                           Copyright (c) 2026 Terminus LLC                          *#
 #*                                                                                    *#
 #*                                All Rights Reserved.                                *#
 #*                                                                                    *#
@@ -8,25 +8,10 @@
 #*                                                                                    *#
 #**************************** INTELLECTUAL PROPERTY RIGHTS ****************************#
 #
-
-#  Python Libraries
-import argparse
-import logging
-import sys
-import traceback
-
-def run( main ):
-    '''
-    Invokes the provided function inside a block.
-
-    This cannot except parameters.  The return argument will be passed to `sys.exit()`.
-    '''
-
-    try:
-        sys.exit(main())
-
-    except Exception as e:
-        logging.error( e )
-        if logging.root.level == logging.DEBUG:
-            traceback.print_exc()
-        sys.exit(1)
+#    File:    __init__.py
+#    Author:  Marvin Smith
+#    Date:    4/4/2026
+#
+"""
+Integration tests for terminus-core-python.
+"""
