@@ -40,7 +40,6 @@ class Projector(ABC):
 
     def __init__(self):
         self._source_image_attrs: Dict[str, Any] = {}
-        self._destination_image_attrs: Dict[str, Any] = {}
 
     @abstractmethod
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
@@ -52,15 +51,6 @@ class Projector(ABC):
         """Transform geographic coordinates to source image pixel coordinates."""
         pass
 
-    @abstractmethod
-    def destination_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform destination image pixel coordinates to geographic coordinates."""
-        pass
-
-    @abstractmethod
-    def geographic_to_destination(self, geo: Geographic) -> Pixel:
-        """Transform geographic coordinates to destination image pixel coordinates."""
-        pass
 
     @abstractmethod
     def update_model(self, **kwargs) -> None:
@@ -84,18 +74,9 @@ class Projector(ABC):
         """Get source image attributes."""
         return self._source_image_attrs.copy()
 
-    @property
-    def destination_image_attributes(self) -> Dict[str, Any]:
-        """Get destination image attributes."""
-        return self._destination_image_attrs.copy()
-
     def set_source_image_attributes(self, **attrs) -> None:
         """Set source image attributes."""
         self._source_image_attrs.update(attrs)
-
-    def set_destination_image_attributes(self, **attrs) -> None:
-        """Set destination image attributes."""
-        self._destination_image_attrs.update(attrs)
 
 
 class Identity(Projector):
@@ -112,13 +93,6 @@ class Identity(Projector):
         """Identity: geographic coordinates are treated as pixel coordinates."""
         return Pixel(x_px=geo.latitude_deg, y_px=geo.longitude_deg)
 
-    def destination_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Identity: pixel coordinates are treated as geographic (lat/lon)."""
-        return Geographic(latitude_deg=pixel.x_px, longitude_deg=pixel.y_px)
-
-    def geographic_to_destination(self, geo: Geographic) -> Pixel:
-        """Identity: geographic coordinates are treated as pixel coordinates."""
-        return Pixel(x_px=geo.latitude_deg, y_px=geo.longitude_deg)
 
     def update_model(self, **kwargs) -> None:
         """Identity model doesn't need updates."""
@@ -171,13 +145,6 @@ class Affine(Projector):
 
         return Pixel(x_px=x_new, y_px=y_new)
 
-    def destination_to_geographic(self, pixel: Pixel) -> Geographic:
-        """For affine, destination and source use the same transformation."""
-        return self.source_to_geographic(pixel)
-
-    def geographic_to_destination(self, geo: Geographic) -> Pixel:
-        """For affine, destination and source use the same transformation."""
-        return self.geographic_to_source(geo)
 
     def update_model(self, transform_matrix: List[List[float]], **kwargs) -> None:
         """Update the affine transformation matrix."""

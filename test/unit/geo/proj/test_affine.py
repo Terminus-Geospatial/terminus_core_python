@@ -13,10 +13,17 @@
 #    Date:    04/04/2026
 #
 """
-Unit tests for Affine projector
+Unit tests for the Affine projector.
+
+Matrix convention (see affine.py):
+    M @ [x, y, 1]^T = [lon, lat, 1]^T
+
+    Row 0: lon = M[0,0]*x + M[0,1]*y + M[0,2]
+    Row 1: lat = M[1,0]*x + M[1,1]*y + M[1,2]
 """
 
 import math
+from typing import List, Tuple
 
 import numpy as np
 import pytest
@@ -45,33 +52,36 @@ class TestAffine:
         ]
 
     def test_transformation_type(self):
-        """Test transformation type property."""
+        """Verify transformation_type returns AFFINE."""
         assert self.projector.transformation_type == Transformation_Type.AFFINE
 
     def test_is_identity(self):
-        """Test is_identity property."""
+        """Verify is_identity is always False for Affine."""
         assert self.projector.is_identity is False
 
     def test_update_model(self):
-        """Test updating the transformation model."""
+        """Verify update_model stores the matrix and computes its inverse."""
         self.projector.update_model(transform_matrix=self.translation_matrix)
-        assert self.projector._transform_matrix == self.translation_matrix
+        assert np.array_equal(self.projector._transform_matrix, self.translation_matrix)
         assert self.projector._inverse_matrix is not None
 
     def test_uninitialized_model_raises_error(self):
-        """Test that uninitialized model raises appropriate errors."""
+        """Verify source_to_geographic raises before update_model is called."""
         with pytest.raises(ValueError, match="Transform matrix not set"):
             self.projector.source_to_geographic(Pixel(x_px=0, y_px=0))
 
     def test_translation_transformation(self):
-        """Test simple translation transformation."""
+        """Verify forward and inverse for a pure translation matrix.
+
+        Matrix: lon = x + 0.01, lat = y - 0.01
+        """
         self.projector.update_model(transform_matrix=self.translation_matrix)
 
         # Test source to geographic - use valid coordinate ranges
         pixel = Pixel(x_px=35.0, y_px=-80.0)  # Use valid latitude range
         geo = self.projector.source_to_geographic(pixel)
 
-        assert abs(geo.latitude_deg - (-79.99)) < 1e-10  # y: -80 + (-0.01) = -79.99
+        assert abs(geo.latitude_deg - (-80.01)) < 1e-10  # y: -80 + (-0.01) = -80.01
         assert abs(geo.longitude_deg - 35.01) < 1e-10  # x: 35 + 0.01 = 35.01
 
         # Test inverse transformation
@@ -80,7 +90,10 @@ class TestAffine:
         assert result_pixel.y_px == -80.0
 
     def test_scaling_transformation(self):
-        """Test simple scaling transformation."""
+        """Verify forward and inverse for a pure scaling matrix.
+
+        Matrix: lon = 1.1*x, lat = 0.9*y
+        """
         self.projector.update_model(transform_matrix=self.scaling_matrix)
 
         # Test source to geographic - use small coordinates to stay in range
@@ -96,7 +109,7 @@ class TestAffine:
         assert result_pixel.y_px == -50.0
 
     def test_complex_transformation(self):
-        """Test complex transformation with rotation and scaling."""
+        """Verify roundtrip accuracy for a combined rotation + scaling matrix."""
         # Small 15-degree rotation + scaling to stay in range
         cos_15 = math.cos(math.pi / 12)  # 15 degrees
         sin_15 = math.sin(math.pi / 12)
@@ -118,29 +131,19 @@ class TestAffine:
         assert abs(result_pixel.y_px - original_pixel.y_px) < 1e-10
 
     def test_singular_matrix_raises_error(self):
-        """Test that singular matrix raises appropriate error."""
+        """Verify update_model raises ValueError for a singular (non-invertible) matrix."""
         singular_matrix = [
             [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],  # This makes the matrix singular
+            [0.0, 0.0, 0.0],  # Zero row makes det = 0
             [0.0, 0.0, 1.0]
         ]
 
-        with pytest.raises(ValueError, match="Singular transformation matrix"):
+        with pytest.raises(ValueError, match="Singular matrix"):
             self.projector.update_model(transform_matrix=singular_matrix)
 
-    def test_destination_transformation(self):
-        """Test that destination transformations work the same as source."""
-        self.projector.update_model(transform_matrix=self.translation_matrix)
-
-        pixel = Pixel(x_px=50.0, y_px=75.0)
-        geo = self.projector.destination_to_geographic(pixel)
-        result_pixel = self.projector.geographic_to_destination(geo)
-
-        assert result_pixel.x_px == 50.0
-        assert result_pixel.y_px == 75.0
 
     def test_roundtrip_precision(self):
-        """Test roundtrip transformation precision."""
+        """Verify numerical precision is maintained across 10 sequential roundtrips."""
         self.projector.update_model(transform_matrix=self.scaling_matrix)
 
         # Test multiple roundtrips with small coordinates
@@ -155,7 +158,7 @@ class TestAffine:
         assert abs(original_pixel.y_px - -50.456) < 1e-10
 
     def test_matrix_inverse_computation(self):
-        """Test that matrix inverse is computed correctly."""
+        """Verify M_inv @ M == I (identity) to floating-point precision."""
         # Test with simple translation matrix
         self.projector.update_model(transform_matrix=self.translation_matrix)
 
@@ -171,7 +174,7 @@ class TestAffine:
         assert np.allclose(product, identity, atol=1e-10)
 
     def test_edge_cases(self):
-        """Test edge cases and boundary conditions."""
+        """Verify identity matrix acts as pass-through (x->lon, y->lat)."""
         # Test with identity matrix
         identity_matrix = [
             [1.0, 0.0, 0.0],
@@ -188,8 +191,61 @@ class TestAffine:
         assert abs(geo.latitude_deg - pixel.y_px) < 1e-10  # latitude comes from y
         assert abs(geo.longitude_deg - pixel.x_px) < 1e-10  # longitude comes from x
 
+    def test_source_to_geo_roundtrip(self):
+        """Verify pixel->geo->pixel roundtrip for a full-world affine mapping.
+
+        Goal: Test that a matrix mapping a 4096x4096 image to the full
+        geographic range [-180,180] x [-90,90] roundtrips exactly and
+        maps key pixels to known geographic values.
+
+        Matrix convention (row 0 = lon, row 1 = lat)::
+
+            lon = (360/W)*x - 180    ->  x=0 maps to -180, x=W maps to +180
+            lat = (180/H)*y - 90     ->  y=0 maps to -90,  y=H maps to +90
+            center (W/2, H/2)        ->  (lon=0, lat=0)
+        """
+        src_width, src_height = 4096, 4096
+
+        # Scale factors: full geographic range [-180,180] x [-90,90]
+        # lon = (360/W)*x - 180,  lat = (180/H)*y - 90
+        scale_lon = 360.0 / src_width
+        scale_lat = 180.0 / src_height
+
+        matrix = np.array([
+            [scale_lon, 0.0, -180.0],
+            [0.0, scale_lat, -90.0],
+            [0.0, 0.0, 1.0]
+        ])
+
+        self.projector.update_model(transform_matrix=matrix)
+
+        # Roundtrip at all 4 corners
+        src_corners = [
+            Pixel(0.0, 0.0),
+            Pixel(src_width, 0.0),
+            Pixel(0.0, src_height),
+            Pixel(src_width, src_height),
+        ]
+
+        for src_pixel in src_corners:
+            geo = self.projector.source_to_geographic(src_pixel)
+            result_pixel = self.projector.geographic_to_source(geo)
+            assert abs(result_pixel.x_px - src_pixel.x_px) < 1e-10
+            assert abs(result_pixel.y_px - src_pixel.y_px) < 1e-10
+
+        # Top-left (0,0) -> (-180, -90)
+        geo_tl = self.projector.source_to_geographic(Pixel(0.0, 0.0))
+        assert abs(geo_tl.longitude_deg + 180) < 1e-10
+        assert abs(geo_tl.latitude_deg + 90) < 1e-10
+
+        # Center (W/2, H/2) -> (0, 0)
+        src_center = Pixel(src_width / 2.0, src_height / 2.0)
+        geo_center = self.projector.source_to_geographic(src_center)
+        assert abs(geo_center.longitude_deg) < 1e-10
+        assert abs(geo_center.latitude_deg) < 1e-10
+
     def test_large_coordinate_values(self):
-        """Test with large coordinate values."""
+        """Verify roundtrip with large pixel values scaled to valid geographic range."""
         # Use matrix that keeps coordinates in valid range
         small_scale_matrix = [
             [0.001, 0.0, 0.0],
@@ -211,3 +267,55 @@ class TestAffine:
         result_pixel = self.projector.geographic_to_source(geo)
         assert abs(result_pixel.x_px - pixel.x_px) < 1e-6
         assert abs(result_pixel.y_px - pixel.y_px) < 1e-6
+
+    def test_affine_gcp_solve_bidirectional(self):
+        """Verify solve_from_gcps() produces a correct bidirectional affine model.
+
+        Goal: Test the full GCP -> solve -> forward/inverse workflow:
+        1. Provide GCPs for a Southern California scene (1920x1080)
+        2. Call solve_from_gcps() to fit forward matrix via least squares
+        3. Verify forward accuracy at GCP locations (machine precision)
+        4. Verify roundtrip (pixel->geo->pixel) is sub-pixel accurate
+
+        Geographic Scenario:
+        - Scene: Southern California (35-36N, 118-117W), 1920x1080 pixels
+        - True mapping: lat = 35 + y/1080,  lon = -118 + x/1920
+        - 5 GCPs: 4 corners + center (overdetermined: 5 equations, 3 unknowns each)
+        """
+        gcps = [
+            (Pixel(0.0, 0.0), Geographic(35.0, -118.0)),       # Top-left
+            (Pixel(1920.0, 0.0), Geographic(35.0, -117.0)),    # Top-right
+            (Pixel(0.0, 1080.0), Geographic(36.0, -118.0)),     # Bottom-left
+            (Pixel(1920.0, 1080.0), Geographic(36.0, -117.0)),  # Bottom-right
+            (Pixel(960.0, 540.0), Geographic(35.5, -117.5)),    # Center
+        ]
+
+        self.projector.solve_from_gcps(gcps)
+
+        # Forward accuracy at GCPs - affine exactly reproduces a linear mapping
+        for pixel, expected_geo in gcps:
+            geo = self.projector.source_to_geographic(pixel)
+            assert abs(geo.latitude_deg - expected_geo.latitude_deg) < 1e-6, \
+                f"Lat error at {pixel}: {geo.latitude_deg:.8f} vs {expected_geo.latitude_deg}"
+            assert abs(geo.longitude_deg - expected_geo.longitude_deg) < 1e-6, \
+                f"Lon error at {pixel}: {geo.longitude_deg:.8f} vs {expected_geo.longitude_deg}"
+
+        # Roundtrip at GCP locations
+        for pixel, _ in gcps:
+            geo = self.projector.source_to_geographic(pixel)
+            result_pixel = self.projector.geographic_to_source(geo)
+            assert abs(result_pixel.x_px - pixel.x_px) < 1e-6
+            assert abs(result_pixel.y_px - pixel.y_px) < 1e-6
+
+        # Center pixel sanity check
+        center_geo = self.projector.source_to_geographic(Pixel(960.0, 540.0))
+        assert abs(center_geo.latitude_deg - 35.5) < 0.001
+        assert abs(center_geo.longitude_deg - (-117.5)) < 0.001
+
+    def test_affine_solve_requires_minimum_gcps(self):
+        """Verify solve_from_gcps raises with fewer than 3 GCPs."""
+        with pytest.raises(ValueError, match="At least 3 GCPs"):
+            self.projector.solve_from_gcps([
+                (Pixel(0.0, 0.0), Geographic(35.0, -118.0)),
+                (Pixel(1920.0, 0.0), Geographic(35.0, -117.0)),
+            ])

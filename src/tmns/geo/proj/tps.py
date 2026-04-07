@@ -14,6 +14,20 @@
 #
 """
 TPS (Thin Plate Spline) projector implementation
+
+Thin Plate Spline is a non-parametric interpolation method that minimizes bending energy
+while passing exactly through all control points. It combines:
+
+- Radial basis functions (r² log(r²)) for non-linear warping
+- Linear terms (ax + by + c) to handle affine components
+- Exact interpolation at control points
+
+Mathematical form:
+    f(x, y) = Σᵢ wᵢ φ(||(x, y) - (xᵢ, yᵢ)||²) + a₁x + a₂y + a₃
+    where φ(r²) = r² log(r²)
+
+The inverse transformation is approximated using nearest-neighbor local linearization
+since the true inverse requires solving a non-linear system iteratively.
 """
 
 # Python Standard Libraries
@@ -29,7 +43,27 @@ from tmns.geo.proj.base import Projector, Transformation_Type
 
 
 class TPS(Projector):
-    """Thin Plate Spline projector for non-linear transformations."""
+    """
+    Thin Plate Spline projector for non-linear transformations.
+
+    The TPS interpolates exactly through all provided control points while minimizing
+    bending energy. It is well-suited for modeling smooth distortions in satellite imagery
+    and for applications requiring precise local control with global smoothness.
+
+    Notes:
+    - Forward transformation (pixel → geographic) is exact at control points
+    - Inverse transformation (geographic → pixel) uses a simplified nearest-neighbor
+      approximation and may have significant error for points far from control points
+    - Requires at least 3 non-collinear control points
+    - Control points should be well-distributed across the image for best results
+
+    Attributes:
+        _control_points: List of (Pixel, Geographic) control point tuples
+        _weights_x: Solved radial basis weights for longitude
+        _weights_y: Solved radial basis weights for latitude
+        _linear_terms_x: Linear affine coefficients for longitude (a₁, a₂, a₃)
+        _linear_terms_y: Linear affine coefficients for latitude (a₁, a₂, a₃)
+    """
 
     def __init__(self):
         super().__init__()
@@ -40,7 +74,17 @@ class TPS(Projector):
         self._linear_terms_y: Tuple[float, float, float] = (0.0, 0.0, 0.0)
 
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform pixel coordinates to geographic using TPS."""
+        """Transform pixel coordinates to geographic using TPS.
+
+        Args:
+            pixel: Source pixel coordinates
+
+        Returns:
+            Geographic coordinates computed via TPS interpolation
+
+        Raises:
+            ValueError: If model not fitted or no control points available
+        """
         if self._weights_x is None or self._weights_y is None:
             raise ValueError("TPS model not fitted. Call update_model() with control points first.")
 
@@ -60,62 +104,103 @@ class TPS(Projector):
                 r_values[i] = r_squared * math.log(r_squared)
 
         # Compute transformed coordinates
+        # Linear terms: (constant, x_coeff, y_coeff)
         lon = (np.dot(self._weights_x[:n], r_values) +
-               self._linear_terms_x[0] * pixel.x_px +
-               self._linear_terms_x[1] * pixel.y_px +
-               self._linear_terms_x[2])
+               self._linear_terms_x[0] +  # constant term
+               self._linear_terms_x[1] * pixel.x_px +  # x coefficient
+               self._linear_terms_x[2] * pixel.y_px)   # y coefficient
 
         lat = (np.dot(self._weights_y[:n], r_values) +
-               self._linear_terms_y[0] * pixel.x_px +
-               self._linear_terms_y[1] * pixel.y_px +
-               self._linear_terms_y[2])
+               self._linear_terms_y[0] +  # constant term
+               self._linear_terms_y[1] * pixel.x_px +  # x coefficient
+               self._linear_terms_y[2] * pixel.y_px)   # y coefficient
 
         return Geographic(latitude_deg=lat, longitude_deg=lon)
 
     def geographic_to_source(self, geo: Geographic) -> Pixel:
-        """Transform geographic coordinates to pixel using inverse TPS."""
-        # Note: True TPS inverse requires solving a system of equations
-        # For simplicity, we'll use a basic approach with iteration
+        """Transform geographic coordinates to pixel using iterative Newton inversion.
+
+        Solves the non-linear TPS inverse by iteratively minimizing the residual
+        between the forward TPS output and the target geographic coordinates.
+        Uses a numerical Jacobian computed via finite differences.
+
+        Args:
+            geo: Geographic coordinates to transform
+
+        Returns:
+            Pixel coordinates recovered via Newton iteration
+
+        Raises:
+            ValueError: If model not fitted or no control points available
+        """
         if self._weights_x is None or self._weights_y is None:
             raise ValueError("TPS model not fitted. Call update_model() with control points first.")
 
-        # Simple approach: find closest control point and use local approximation
-        min_dist = float('inf')
-        closest_pixel = None
-        closest_geo = None
-
-        for control_pixel, control_geo in self._control_points:
-            dist = math.sqrt((geo.latitude_deg - control_geo.latitude_deg)**2 +
-                           (geo.longitude_deg - control_geo.longitude_deg)**2)
-            if dist < min_dist:
-                min_dist = dist
-                closest_pixel = control_pixel
-                closest_geo = control_geo
-
-        if closest_pixel is None:
+        if not self._control_points:
             raise ValueError("No control points available for inverse transformation.")
 
-        # Simple linear approximation around closest point
-        # In a real implementation, this would use iterative solving
-        dx = geo.longitude_deg - closest_geo.longitude_deg
-        dy = geo.latitude_deg - closest_geo.latitude_deg
+        # Initial guess: nearest control point in geographic space
+        target_lat = geo.latitude_deg
+        target_lon = geo.longitude_deg
 
-        # Approximate inverse (this is simplified)
-        pixel_x = closest_pixel.x_px + dx * 1000  # Rough scale factor
-        pixel_y = closest_pixel.y_px + dy * 1000
+        min_dist = float('inf')
+        x = 0.0
+        y = 0.0
+        for cp_pixel, cp_geo in self._control_points:
+            dist = ((cp_geo.latitude_deg - target_lat) ** 2 +
+                    (cp_geo.longitude_deg - target_lon) ** 2)
+            if dist < min_dist:
+                min_dist = dist
+                x = cp_pixel.x_px
+                y = cp_pixel.y_px
 
-        return Pixel(x_px=pixel_x, y_px=pixel_y)
+        # Newton iteration with numerical Jacobian
+        eps = 0.5  # finite difference step in pixels
+        max_iters = 50
+        tol = 1e-7  # convergence in degrees
 
-    def destination_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform destination pixel to geographic (same as source for TPS)."""
-        return self.source_to_geographic(pixel)
+        for _ in range(max_iters):
+            geo_est = self.source_to_geographic(Pixel(x, y))
+            dlat = target_lat - geo_est.latitude_deg
+            dlon = target_lon - geo_est.longitude_deg
 
-    def geographic_to_destination(self, geo: Geographic) -> Pixel:
-        """Transform geographic to destination pixel (same as source for TPS)."""
-        return self.geographic_to_source(geo)
+            if abs(dlat) < tol and abs(dlon) < tol:
+                break
+
+            # Numerical Jacobian via forward finite differences
+            geo_dx = self.source_to_geographic(Pixel(x + eps, y))
+            geo_dy = self.source_to_geographic(Pixel(x, y + eps))
+
+            j00 = (geo_dx.latitude_deg - geo_est.latitude_deg) / eps   # dlat/dx
+            j01 = (geo_dy.latitude_deg - geo_est.latitude_deg) / eps   # dlat/dy
+            j10 = (geo_dx.longitude_deg - geo_est.longitude_deg) / eps  # dlon/dx
+            j11 = (geo_dy.longitude_deg - geo_est.longitude_deg) / eps  # dlon/dy
+
+            det = j00 * j11 - j01 * j10
+            if abs(det) < 1e-15:
+                break  # Singular Jacobian - cannot converge
+
+            # Newton update: [dx, dy] = J^-1 @ [dlat, dlon]
+            x += (j11 * dlat - j01 * dlon) / det
+            y += (j00 * dlon - j10 * dlat) / det
+
+        return Pixel(x_px=x, y_px=y)
+
 
     def update_model(self, **kwargs) -> None:
-        """Fit TPS model to control points."""
+        """Fit TPS model to control points.
+
+        Args:
+            control_points: List of (Pixel, Geographic) tuples for fitting
+
+        Raises:
+            ValueError: If control_points missing, insufficient, or collinear
+
+        Notes:
+            - Builds the TPS matrix system with radial basis functions and linear constraints
+            - Solves for radial basis weights and affine linear terms
+            - Requires at least 3 non-collinear control points
+        """
         if 'control_points' not in kwargs:
             raise ValueError("control_points required for TPS projector")
 
@@ -185,3 +270,32 @@ class TPS(Projector):
     @property
     def is_identity(self) -> bool:
         return False
+
+    def image_bounds(self) -> List[Pixel]:
+        """Return image bounding box as 4 corner pixels.
+
+        Derives bounds from control point pixel coordinates.
+        """
+        if not self._control_points:
+            raise ValueError("TPS model not fitted. Call update_model() with control points first.")
+
+        # Find min/max from control points
+        min_x = min(cp[0].x_px for cp in self._control_points)
+        max_x = max(cp[0].x_px for cp in self._control_points)
+        min_y = min(cp[0].y_px for cp in self._control_points)
+        max_y = max(cp[0].y_px for cp in self._control_points)
+
+        return [
+            Pixel(x_px=min_x, y_px=min_y),  # Top-left
+            Pixel(x_px=max_x, y_px=min_y),  # Top-right
+            Pixel(x_px=max_x, y_px=max_y),  # Bottom-right
+            Pixel(x_px=min_x, y_px=max_y),  # Bottom-left
+        ]
+
+    def geographic_bounds(self) -> List[Geographic]:
+        """Return geographic bounding polygon vertices.
+
+        Transforms image_bounds corners to geographic coordinates.
+        """
+        image_corners = self.image_bounds()
+        return [self.source_to_geographic(pixel) for pixel in image_corners]

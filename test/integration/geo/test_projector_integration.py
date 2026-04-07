@@ -20,7 +20,7 @@ import pytest
 import numpy as np
 
 from tmns.geo.coord import Geographic, Pixel
-from tmns.geo.proj import Transformation_Type, Identity, Affine
+from tmns.geo.proj import Transformation_Type, Identity, Affine, RPC, TPS
 
 
 class TestProjector_Integration:
@@ -57,26 +57,29 @@ class TestProjector_Integration:
             assert lon_error < tolerance, f"Longitude precision loss: {lon_error}"
 
     def test_affine_basic_transformation(self):
-        """Test affine projector basic transformation."""
+        """Test affine projector basic transformation.
+
+        Matrix convention: row 0 = longitude equation, row 1 = latitude equation.
+            lon = x + 0.01
+            lat = y - 0.01
+
+        Uses pixel coordinates that produce valid geographic output (lat in [-90,90]).
+        """
         projector = Affine()
 
-        # Set up a simple translation matrix
         transform_matrix = [
-            [1.0, 0.0, 0.01],   # x' = x + 0.01
-            [0.0, 1.0, -0.01],  # y' = y - 0.01
+            [1.0, 0.0, 0.01],   # lon = x + 0.01
+            [0.0, 1.0, -0.01],  # lat = y - 0.01
             [0.0, 0.0, 1.0]
         ]
         projector.update_model(transform_matrix=transform_matrix)
 
-        # Test transformation
-        test_pixel = Pixel(x_px=35.0, y_px=-118.0)
+        # Pixel(35, -80): lon = 35.01, lat = -80.01 (valid geographic output)
+        test_pixel = Pixel(x_px=35.0, y_px=-80.0)
         geo = projector.source_to_geographic(test_pixel)
 
-        # Should be translated by the matrix
-        expected_geo = Geographic(latitude_deg=-118.01, longitude_deg=35.01)
-
-        assert abs(geo.latitude_deg - expected_geo.latitude_deg) < 1e-6
-        assert abs(geo.longitude_deg - expected_geo.longitude_deg) < 1e-6
+        assert abs(geo.longitude_deg - 35.01) < 1e-6
+        assert abs(geo.latitude_deg - (-80.01)) < 1e-6
 
     def test_affine_roundtrip_validation(self):
         """Test affine projector roundtrip validation."""
@@ -121,31 +124,3 @@ class TestProjector_Integration:
         assert attrs["width"] == 1000
         assert attrs["height"] == 800
         assert attrs["crs"] == "EPSG:4326"
-
-        # Test destination attributes
-        projector.set_destination_image_attributes(width=500, height=400)
-        attrs = projector.destination_image_attributes
-        assert attrs["width"] == 500
-        assert attrs["height"] == 400
-
-
-class Test_RPC_TPS_Placeholder:
-    """Placeholder tests for future RPC and TPS implementations."""
-
-    @pytest.mark.skip(reason="RPC projector not yet implemented")
-    def test_rpc_coefficient_loading(self):
-        """Test loading RPC coefficients from GeoTIFF."""
-        # TODO: Implement RPC projector and test coefficient parsing
-        pass
-
-    @pytest.mark.skip(reason="RPC projector not yet implemented")
-    def test_rpc_transformation_accuracy(self):
-        """Test RPC transformation accuracy."""
-        # TODO: Implement RPC projector and test forward/inverse transformations
-        pass
-
-    @pytest.mark.skip(reason="TPS projector not yet implemented")
-    def test_tps_interpolation_accuracy(self):
-        """Test TPS interpolation accuracy."""
-        # TODO: Implement TPS projector and test interpolation with control points
-        pass

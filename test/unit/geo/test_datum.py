@@ -10,112 +10,148 @@
 #
 #    File:    test_datum.py
 #    Author:  Marvin Smith
-#    Date:    4/4/2026
+#    Date:    04/04/2026
 #
 """
 Unit tests for datum definitions.
 """
 
-# Third-Party Libraries
+import math
+import numpy as np
 import pytest
 
 # Project Libraries
-from tmns.geo.datum import Datum, Vertical_Datum
+from tmns.geo.datum import Datum, WGS84
+from tmns.geo.coord.geographic import Geographic
+from tmns.geo.coord.ecef import ECEF
 
 
 class Test_Datum:
-    """Test Datum enum."""
+    """Test Datum base class."""
 
-    def test_datum_values(self):
-        """Test datum enum values."""
-        assert Datum.WGS84.value == "EPSG:4326"
-        assert Datum.NAD83.value == "EPSG:4269"
-        assert Datum.EGM96.value == "EPSG:5773"
-        assert Datum.NAVD88.value == "EPSG:5703"
+    def test_semi_minor_axis_calculation(self):
+        """Test semi-minor axis calculation."""
+        datum = Datum(semi_major_axis=6378137.0, flattening=1.0 / 298.257223563)
+        expected_b = 6378137.0 * (1 - 1.0 / 298.257223563)
+        assert abs(datum.semi_minor_axis - expected_b) < 1e-6
 
-    def test_datum_names(self):
-        """Test datum enum names."""
-        assert Datum.WGS84.name == "WGS84"
-        assert Datum.NAD83.name == "NAD83"
-        assert Datum.EGM96.name == "EGM96"
-        assert Datum.NAVD88.name == "NAVD88"
+    def test_ray_ellipsoid_intersection_simple(self):
+        """Test simple ray-ellipsoid intersection."""
+        datum = Datum(semi_major_axis=6378137.0, flattening=1.0 / 298.257223563)
 
-    def test_datum_iteration(self):
-        """Test iterating over datum enum."""
-        datums = list(Datum)
-        assert len(datums) == 4
-        assert Datum.WGS84 in datums
-        assert Datum.NAD83 in datums
-        assert Datum.EGM96 in datums
-        assert Datum.NAVD88 in datums
+        # Ray from above north pole pointing straight down
+        origin = ECEF.create(0, 0, 7000000)  # 7000 km above pole
+        direction = np.array([0, 0, -1])     # Pointing down
 
-    def test_datum_from_string(self):
-        """Test creating datum from string value."""
-        assert Datum("EPSG:4326") == Datum.WGS84
-        assert Datum("EPSG:4269") == Datum.NAD83
-        assert Datum("EPSG:5773") == Datum.EGM96
-        assert Datum("EPSG:5703") == Datum.NAVD88
+        intersection = datum.ray_ellipsoid_intersection(origin, direction)
 
-    def test_datum_from_name(self):
-        """Test creating datum from name."""
-        assert Datum["WGS84"] == Datum.WGS84
-        assert Datum["NAD83"] == Datum.NAD83
-        assert Datum["EGM96"] == Datum.EGM96
-        assert Datum["NAVD88"] == Datum.NAVD88
+        # Should intersect near the north pole
+        assert abs(intersection.latitude_deg - 90.0) < 0.1
+        assert abs(intersection.longitude_deg) < 0.1
 
+    def test_ray_ellipsoid_intersection_misses(self):
+        """Test ray that misses the ellipsoid."""
+        datum = Datum(semi_major_axis=6378137.0, flattening=1.0 / 298.257223563)
 
-class Test_Vertical_Datum:
-    """Test Vertical_Datum enum."""
+        # Ray pointing away from ellipsoid
+        origin = ECEF.create(0, 0, 7000000)
+        direction = np.array([0, 0, 1])  # Pointing up
 
-    def test_vertical_datum_values(self):
-        """Test vertical datum enum values."""
-        assert Vertical_Datum.EGM96.value == "EPSG:5773"
-        assert Vertical_Datum.NAVD88.value == "EPSG:5703"
-        assert Vertical_Datum.MSL.value == "EPSG:5714"
+        with pytest.raises(ValueError, match="Ray does not intersect ellipsoid in forward direction."):
+            datum.ray_ellipsoid_intersection(origin, direction)
 
-    def test_vertical_datum_names(self):
-        """Test vertical datum enum names."""
-        assert Vertical_Datum.EGM96.name == "EGM96"
-        assert Vertical_Datum.NAVD88.name == "NAVD88"
-        assert Vertical_Datum.MSL.name == "MSL"
+    def test_check_ray_ellipsoid_intersection(self):
+        """Test ray intersection check method."""
+        datum = Datum(semi_major_axis=6378137.0, flattening=1.0 / 298.257223563)
 
-    def test_vertical_datum_iteration(self):
-        """Test iterating over vertical datum enum."""
-        vertical_datums = list(Vertical_Datum)
-        assert len(vertical_datums) == 3
-        assert Vertical_Datum.EGM96 in vertical_datums
-        assert Vertical_Datum.NAVD88 in vertical_datums
-        assert Vertical_Datum.MSL in vertical_datums
+        # Ray that should intersect
+        origin = ECEF.create(0, 0, 7000000)
+        direction = np.array([0, 0, -1])
+        assert datum.check_ray_ellipsoid_intersection(origin, direction) is True
 
-    def test_vertical_datum_from_string(self):
-        """Test creating vertical datum from string value."""
-        assert Vertical_Datum("EPSG:5773") == Vertical_Datum.EGM96
-        assert Vertical_Datum("EPSG:5703") == Vertical_Datum.NAVD88
-        assert Vertical_Datum("EPSG:5714") == Vertical_Datum.MSL
+        # Ray that should not intersect
+        direction = np.array([0, 0, 1])
+        assert datum.check_ray_ellipsoid_intersection(origin, direction) is False
 
-    def test_vertical_datum_from_name(self):
-        """Test creating vertical datum from name."""
-        assert Vertical_Datum["EGM96"] == Vertical_Datum.EGM96
-        assert Vertical_Datum["NAVD88"] == Vertical_Datum.NAVD88
-        assert Vertical_Datum["MSL"] == Vertical_Datum.MSL
+    def test_ray_ellipsoid_intersection_with_geographic_origin(self):
+        """Test ray intersection with geographic origin."""
+        datum = Datum(semi_major_axis=6378137.0, flattening=1.0 / 298.257223563)
+
+        # Use geographic coordinate as origin
+        origin_geo = Geographic.create(45.0, 0.0, 10000)  # 45°N, 0°E, 10km altitude
+        direction = np.array([0, -1, -1])  # Pointing down and south
+
+        intersection = datum.ray_ellipsoid_intersection(origin_geo, direction)
+
+        # Should be on the surface (altitude close to 0)
+        assert abs(intersection.altitude_m) < 100  # Within 100m of surface
 
 
-class Test_Datum_Relationships:
-    """Test relationships between datums."""
+class Test_WGS84:
+    """Test WGS84 specific implementation."""
 
-    def test_shared_datums(self):
-        """Test datums that appear in both enums."""
-        # EGM96 and NAVD88 appear in both datum enums
-        assert Datum.EGM96.value == Vertical_Datum.EGM96.value
-        assert Datum.NAVD88.value == Vertical_Datum.NAVD88.value
+    def test_wgs84_parameters(self):
+        """Test WGS84 standard parameters."""
+        wgs84 = WGS84()
 
-    def test_datum_descriptions(self):
-        """Test that datum values are valid EPSG codes."""
-        # All values should be valid EPSG codes
-        for datum in Datum:
-            assert datum.value.startswith("EPSG:")
-            assert datum.value[5:].isdigit()  # After "EPSG:" should be digits
+        # Standard WGS84 parameters
+        assert abs(wgs84.semi_major_axis - 6378137.0) < 1e-6
+        assert abs(wgs84.flattening - (1.0 / 298.257223563)) < 1e-12
 
-        for vertical_datum in Vertical_Datum:
-            assert vertical_datum.value.startswith("EPSG:")
-            assert vertical_datum.value[5:].isdigit()  # After "EPSG:" should be digits
+        # Semi-minor axis should be approximately 6356752.314m
+        expected_b = 6378137.0 * (1 - 1.0 / 298.257223563)
+        assert abs(wgs84.semi_minor_axis - expected_b) < 1e-3
+
+    def test_wgs84_ray_intersection_equator(self):
+        """Test ray intersection at equator."""
+        wgs84 = WGS84()
+
+        # Ray from above equator pointing down
+        origin = ECEF.create(6378137.0, 0, 15000)  # 15km above equator at prime meridian
+        direction = np.array([0, 0, -1])
+
+        # This should intersect at equator, prime meridian
+        intersection = wgs84.ray_ellipsoid_intersection(origin, direction)
+
+        # Should intersect at equator, prime meridian
+        assert abs(intersection.latitude_deg) < 0.01
+        assert abs(intersection.longitude_deg) < 0.01
+        assert abs(intersection.altitude_m) < 1.0
+
+
+class Test_Datum_Error_Cases:
+    """Test error cases and edge conditions."""
+
+    def test_invalid_direction_vector(self):
+        """Test invalid direction vector (zero magnitude)."""
+        datum = Datum(semi_major_axis=6378137.0, flattening=1.0 / 298.257223563)
+
+        origin = ECEF.create(0, 0, 7000000)
+        direction = np.array([0, 0, 0])  # Zero vector
+
+        with pytest.raises(ValueError, match="Invalid direction vector"):
+            datum.ray_ellipsoid_intersection(origin, direction)
+
+    def test_very_small_direction_vector(self):
+        """Test very small direction vector."""
+        datum = Datum(semi_major_axis=6378137.0, flattening=1.0 / 298.257223563)
+
+        origin = ECEF.create(0, 0, 7000000)
+        direction = np.array([1e-15, 0, -1])  # Very small x component
+
+        # Should still work
+        intersection = datum.ray_ellipsoid_intersection(origin, direction)
+        assert intersection is not None
+
+    def test_ray_origin_inside_ellipsoid(self):
+        """Test ray originating inside ellipsoid."""
+        datum = Datum(semi_major_axis=6378137.0, flattening=1.0 / 298.257223563)
+
+        # Origin at center of Earth
+        origin = ECEF.create(0, 0, 0)
+        direction = np.array([1, 0, 0])  # Pointing east
+
+        # Should still find intersection
+        intersection = datum.ray_ellipsoid_intersection(origin, direction)
+        assert intersection is not None
+        assert abs(intersection.altitude_m) < 1.0  # On surface

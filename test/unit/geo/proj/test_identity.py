@@ -53,21 +53,6 @@ class TestIdentity:
         assert pixel.x_px == geo.latitude_deg
         assert pixel.y_px == geo.longitude_deg
 
-    def test_destination_to_geographic(self):
-        """Test destination to geographic transformation."""
-        pixel = Pixel(x_px=40.0, y_px=-120.0)  # Use valid coordinate ranges
-        geo = self.projector.destination_to_geographic(pixel)
-
-        assert geo.latitude_deg == pixel.x_px
-        assert geo.longitude_deg == pixel.y_px
-
-    def test_geographic_to_destination(self):
-        """Test geographic to destination transformation."""
-        geo = Geographic(latitude_deg=40.0, longitude_deg=-120.0)  # Use valid coordinate ranges
-        pixel = self.projector.geographic_to_destination(geo)
-
-        assert pixel.x_px == geo.latitude_deg
-        assert pixel.y_px == geo.longitude_deg
 
     def test_update_model(self):
         """Test update_model method (no-op for identity)."""
@@ -82,11 +67,6 @@ class TestIdentity:
         assert attrs["width"] == 1000
         assert attrs["height"] == 800
 
-        # Test setting and getting destination attributes
-        self.projector.set_destination_image_attributes(width=500, height=400)
-        attrs = self.projector.destination_image_attributes
-        assert attrs["width"] == 500
-        assert attrs["height"] == 400
 
     def test_roundtrip_transformation(self):
         """Test roundtrip transformation accuracy."""

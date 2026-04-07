@@ -19,7 +19,7 @@ Projector base classes and enums
 # Python Standard Libraries
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 # Project Libraries
 from tmns.geo.coord import Geographic, Pixel
@@ -38,7 +38,6 @@ class Projector(ABC):
 
     def __init__(self):
         self._source_image_attrs: Dict[str, Any] = {}
-        self._destination_image_attrs: Dict[str, Any] = {}
 
     @abstractmethod
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
@@ -50,15 +49,6 @@ class Projector(ABC):
         """Transform geographic coordinates to source image pixel coordinates."""
         pass
 
-    @abstractmethod
-    def destination_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform destination image pixel coordinates to geographic coordinates."""
-        pass
-
-    @abstractmethod
-    def geographic_to_destination(self, geo: Geographic) -> Pixel:
-        """Transform geographic coordinates to destination image pixel coordinates."""
-        pass
 
     @abstractmethod
     def update_model(self, **kwargs) -> None:
@@ -77,20 +67,28 @@ class Projector(ABC):
         """Return True if this is an identity transformation."""
         pass
 
+    @abstractmethod
+    def image_bounds(self) -> List[Pixel]:
+        """Return image bounding box as 4 corner pixels.
+
+        Returns list of Pixel in order: [top-left, top-right, bottom-right, bottom-left]
+        """
+        pass
+
+    @abstractmethod
+    def geographic_bounds(self) -> List[Geographic]:
+        """Return geographic bounding polygon vertices.
+
+        Transforms image_bounds corners to geographic coordinates.
+        Returns list of Geographic in order: [top-left, top-right, bottom-right, bottom-left]
+        """
+        pass
+
     @property
     def source_image_attributes(self) -> Dict[str, Any]:
         """Get source image attributes."""
         return self._source_image_attrs.copy()
 
-    @property
-    def destination_image_attributes(self) -> Dict[str, Any]:
-        """Get destination image attributes."""
-        return self._destination_image_attrs.copy()
-
     def set_source_image_attributes(self, **attrs) -> None:
         """Set source image attributes."""
         self._source_image_attrs.update(attrs)
-
-    def set_destination_image_attributes(self, **attrs) -> None:
-        """Set destination image attributes."""
-        self._destination_image_attrs.update(attrs)

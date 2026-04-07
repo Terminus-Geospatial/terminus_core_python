@@ -17,7 +17,10 @@ Affine projector implementation
 """
 
 # Python Standard Libraries
-from typing import List
+from typing import Any, Dict, List, Tuple
+
+# Third-Party Libraries
+import numpy as np
 
 # Project Libraries
 from tmns.geo.coord import Geographic, Pixel
@@ -25,83 +28,103 @@ from tmns.geo.proj.base import Projector, Transformation_Type
 
 
 class Affine(Projector):
-    """Affine transformation using transformation matrix."""
+    """Affine projector - 3x3 homogeneous affine transformation.
+
+    Matrix convention
+    -----------------
+    ``M @ [x, y, 1]^T = [lon, lat, 1]^T``
+
+    Row 0 defines the longitude polynomial, row 1 defines latitude::
+
+        lon = M[0,0]*x + M[0,1]*y + M[0,2]
+        lat = M[1,0]*x + M[1,1]*y + M[1,2]
+
+    Row 2 is always ``[0, 0, 1]`` to preserve the homogeneous form.
+    The inverse (``geographic_to_source``) applies ``M^-1 @ [lon, lat, 1]^T``.
+
+    A model can be set two ways:
+    - **Explicit matrix**: ``update_model(transform_matrix=M)``
+    - **From GCPs**: ``solve_from_gcps(gcps)`` fits M via least squares.
+    """
 
     def __init__(self):
         super().__init__()
-        self._transform_matrix: List[List[float]] | None = None
-        self._inverse_matrix: List[List[float]] | None = None
+        self._transform_matrix: np.ndarray | None = None
+        self._inverse_matrix: np.ndarray | None = None
 
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform source pixel to geographic using affine matrix."""
+        """Transform a source image pixel to geographic coordinates.
+
+        Applies ``M @ [x, y, 1]^T`` and maps result[0] → longitude,
+        result[1] → latitude.
+
+        Args:
+            pixel: Source image pixel coordinates.
+
+        Returns:
+            Geographic coordinates (lat, lon).
+
+        Raises:
+            ValueError: If ``update_model`` has not been called.
+        """
         if self._transform_matrix is None:
             raise ValueError("Transform matrix not set. Call update_model() first.")
 
         # Apply affine transformation: [x', y', 1] = M * [x, y, 1]
-        x_prime = (self._transform_matrix[0][0] * pixel.x_px +
-                  self._transform_matrix[0][1] * pixel.y_px +
-                  self._transform_matrix[0][2])
-        y_prime = (self._transform_matrix[1][0] * pixel.x_px +
-                  self._transform_matrix[1][1] * pixel.y_px +
-                  self._transform_matrix[1][2])
-
-        return Geographic(latitude_deg=y_prime, longitude_deg=x_prime)
+        p = np.array([pixel.x_px, pixel.y_px, 1.0])
+        result = self._transform_matrix @ p
+        return Geographic(latitude_deg=result[1], longitude_deg=result[0])
 
     def geographic_to_source(self, geo: Geographic) -> Pixel:
-        """Transform geographic to source pixel using inverse affine matrix."""
+        """Transform geographic coordinates to source image pixel.
+
+        Applies ``M^-1 @ [lon, lat, 1]^T`` and maps result[0] → x,
+        result[1] → y.
+
+        Args:
+            geo: Geographic coordinates.
+
+        Returns:
+            Source image pixel coordinates.
+
+        Raises:
+            ValueError: If ``update_model`` has not been called.
+        """
         if self._inverse_matrix is None:
             raise ValueError("Inverse matrix not set. Call update_model() first.")
 
         # Apply inverse transformation: [x, y, 1] = M_inv * [x', y', 1]
-        x = (self._inverse_matrix[0][0] * geo.longitude_deg +
-             self._inverse_matrix[0][1] * geo.latitude_deg +
-             self._inverse_matrix[0][2])
-        y = (self._inverse_matrix[1][0] * geo.longitude_deg +
-             self._inverse_matrix[1][1] * geo.latitude_deg +
-             self._inverse_matrix[1][2])
+        g = np.array([geo.longitude_deg, geo.latitude_deg, 1.0])
+        result = self._inverse_matrix @ g
+        return Pixel(x_px=result[0], y_px=result[1])
 
-        return Pixel(x_px=x, y_px=y)
-
-    def destination_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform destination pixel to geographic (same as source for affine)."""
-        return self.source_to_geographic(pixel)
-
-    def geographic_to_destination(self, geo: Geographic) -> Pixel:
-        """Transform geographic to destination pixel (same as source for affine)."""
-        return self.geographic_to_source(geo)
 
     def update_model(self, **kwargs) -> None:
-        """Update the affine transformation matrix."""
+        """Set the affine transformation matrix.
+
+        Keyword Args:
+            transform_matrix: 3x3 list or ndarray where row 0 is the
+                longitude equation and row 1 is the latitude equation.
+                Row 2 must be ``[0, 0, 1]``.
+            image_bounds (optional): ``(min_x, min_y, max_x, max_y)`` tuple
+                stored for ``image_bounds()`` queries.
+
+        Raises:
+            ValueError: If ``transform_matrix`` is missing or singular.
+        """
         if 'transform_matrix' not in kwargs:
             raise ValueError("transform_matrix required for affine projector")
 
-        self._transform_matrix = kwargs['transform_matrix']
-        self._inverse_matrix = self._compute_inverse_matrix(self._transform_matrix)
+        matrix_list = kwargs['transform_matrix']
+        self._transform_matrix = np.array(matrix_list, dtype=float)
+        try:
+            self._inverse_matrix = np.linalg.inv(self._transform_matrix)
+        except np.linalg.LinAlgError as e:
+            raise ValueError(f"Singular matrix - cannot compute inverse: {e}") from e
 
-    def _compute_inverse_matrix(self, matrix: List[List[float]]) -> List[List[float]]:
-        """Compute the inverse of a 3x3 affine transformation matrix."""
-        # Extract 2x2 transformation part and translation
-        a, b, c = matrix[0]
-        d, e, f = matrix[1]
-        
-        # Compute determinant of 2x2 part
-        det = a * e - b * d
-        if abs(det) < 1e-10:
-            raise ValueError("Singular transformation matrix (determinant near zero)")
-
-        # Compute inverse of 2x2 part
-        a_inv = e / det
-        b_inv = -b / det
-        c_inv = (b * f - c * e) / det
-        d_inv = -d / det
-        e_inv = a / det
-        f_inv = (c * d - a * f) / det
-
-        return [
-            [a_inv, b_inv, c_inv],
-            [d_inv, e_inv, f_inv],
-            [0.0, 0.0, 1.0]
-        ]
+        # Store image bounds if provided
+        if 'image_bounds' in kwargs:
+            self.set_source_image_attributes(bounds=kwargs['image_bounds'])
 
     @property
     def transformation_type(self) -> Transformation_Type:
@@ -110,3 +133,67 @@ class Affine(Projector):
     @property
     def is_identity(self) -> bool:
         return False
+
+    def solve_from_gcps(self, gcps: List[Tuple[Pixel, Geographic]]) -> None:
+        """Fit affine transformation matrix from Ground Control Points.
+
+        Solves two independent linear systems via least squares::
+
+            lon = a*x + b*y + c
+            lat = d*x + e*y + f
+
+        The resulting 3x3 matrix is ``[[a,b,c], [d,e,f], [0,0,1]]``.
+
+        Args:
+            gcps: List of (Pixel, Geographic) pairs.
+                  Requires at least 3 non-collinear points.
+
+        Raises:
+            ValueError: If fewer than 3 GCPs or points are collinear.
+        """
+        if len(gcps) < 3:
+            raise ValueError(f"At least 3 GCPs required for affine solve, got {len(gcps)}")
+
+        pixels = [p for p, _ in gcps]
+        geos = [g for _, g in gcps]
+
+        A = np.array([[p.x_px, p.y_px, 1.0] for p in pixels])
+        lons = np.array([g.longitude_deg for g in geos])
+        lats = np.array([g.latitude_deg for g in geos])
+
+        row_lon, _, rank_lon, _ = np.linalg.lstsq(A, lons, rcond=None)
+        row_lat, _, rank_lat, _ = np.linalg.lstsq(A, lats, rcond=None)
+
+        if rank_lon < 3 or rank_lat < 3:
+            raise ValueError("GCPs are collinear or degenerate - cannot solve affine transform")
+
+        self.update_model(transform_matrix=np.array([
+            row_lon.tolist(),
+            row_lat.tolist(),
+            [0.0, 0.0, 1.0],
+        ]))
+
+    def image_bounds(self) -> List[Pixel]:
+        """Return image bounding box as 4 corner pixels.
+
+        Uses bounds stored in source_image_attributes (set via update_model).
+        """
+        attrs = self.source_image_attributes
+        if 'bounds' not in attrs:
+            raise ValueError("Image bounds not set. Pass 'image_bounds' to update_model().")
+
+        bounds = attrs['bounds']  # (min_x, min_y, max_x, max_y)
+        return [
+            Pixel(x_px=bounds[0], y_px=bounds[1]),  # Top-left
+            Pixel(x_px=bounds[2], y_px=bounds[1]),  # Top-right
+            Pixel(x_px=bounds[2], y_px=bounds[3]),  # Bottom-right
+            Pixel(x_px=bounds[0], y_px=bounds[3]),  # Bottom-left
+        ]
+
+    def geographic_bounds(self) -> List[Geographic]:
+        """Return geographic bounding polygon vertices.
+
+        Transforms image_bounds corners to geographic coordinates.
+        """
+        image_corners = self.image_bounds()
+        return [self.source_to_geographic(pixel) for pixel in image_corners]

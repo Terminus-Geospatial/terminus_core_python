@@ -40,7 +40,10 @@ from tmns.geo.coord import (
 )
 
 # Export datum components
-from tmns.geo.datum import Datum, Vertical_Datum
+from tmns.geo.datum import Datum, WGS84
+
+# Export LTP components
+from tmns.geo.ltp import Local_Tangent_Plane
 
 # Export projector components
 from tmns.geo.proj import Projector, Identity, Affine, RPC, TPS, GCP, Transformation_Type
@@ -73,7 +76,8 @@ __all__ = [
 
     # Datum types
     'Datum',
-    'Vertical_Datum',
+    'WGS84',
+    'Local_Tangent_Plane',
 
     # Projector types
     'Projector',
