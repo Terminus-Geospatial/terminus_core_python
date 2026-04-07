@@ -13,21 +13,78 @@
 #    Date:    04/04/2026
 #
 """
-TPS (Thin Plate Spline) projector implementation
+TPS (Thin Plate Spline) projector implementation.
 
-Thin Plate Spline is a non-parametric interpolation method that minimizes bending energy
-while passing exactly through all control points. It combines:
+Overview
+--------
+Thin Plate Spline (TPS) is a non-parametric, scattered-data interpolation method
+that produces a smooth surface minimising the bending energy (second-order Sobolev
+semi-norm) subject to passing exactly through every control point.  In remote
+sensing it is used to warp imagery between two coordinate systems when the
+distortion cannot be modelled well by lower-order polynomials (e.g. sensor
+roll/pitch jitter, terrain relief without a DEM, historic map digitisation).
 
-- Radial basis functions (r² log(r²)) for non-linear warping
-- Linear terms (ax + by + c) to handle affine components
-- Exact interpolation at control points
+Mathematical Formulation
+------------------------
+Given N control points {(xᵢ, yᵢ)} with target values {zᵢ}, the TPS interpolant is::
 
-Mathematical form:
-    f(x, y) = Σᵢ wᵢ φ(||(x, y) - (xᵢ, yᵢ)||²) + a₁x + a₂y + a₃
-    where φ(r²) = r² log(r²)
+    f(x, y) = a₁ + a₂·x + a₃·y  +  Σᵢ wᵢ · φ(‖(x,y) − (xᵢ,yᵢ)‖²)
 
-The inverse transformation is approximated using nearest-neighbor local linearization
-since the true inverse requires solving a non-linear system iteratively.
+where the kernel is the *natural* thin-plate spline kernel in ℝ²::
+
+    φ(r²) = r² · log(r²)        (with φ(0) = 0 by continuity)
+
+This kernel minimises the bending energy integral::
+
+    J[f] = ∬ (f_xx² + 2·f_xy² + f_yy²) dx dy
+
+The coefficients (w, a) are found by solving the (N+3)×(N+3) saddle-point system::
+
+    ┌ K   P ┐ ┌ w ┐   ┌ z ┐
+    │       │ │   │ = │   │
+    └ Pᵀ  0 ┘ └ a ┘   └ 0 ┘
+
+where:
+
+- **K** (NxN): K[i,j] = φ(‖(xᵢ,yᵢ) − (xⱼ,yⱼ)‖²)
+- **P** (Nx3): P[i,:] = [1, xᵢ, yᵢ]  (polynomial / affine block)
+- **w** (Nx1): radial basis weights
+- **a** (3x1): affine coefficients [a₁, a₂, a₃]
+- **z** (Nx1): target coordinate values at the control points
+- Bottom block **0** enforces the orthogonality constraints
+  Σwᵢ = 0, Σwᵢxᵢ = 0, Σwᵢyᵢ = 0 needed for a unique minimum-bending solution
+
+The system is solved independently for longitude (x-target) and latitude (y-target).
+
+Inverse Transformation
+----------------------
+The inverse f⁻¹ (geographic → pixel) has no closed form.  This implementation uses
+Newton iteration with a numerically-computed Jacobian (forward finite differences),
+starting from the nearest control point.  Convergence is typically reached in
+3–10 iterations to sub-pixel accuracy for well-conditioned problems.
+
+References
+----------
+- Bookstein, F. L. (1989). "Principal warps: Thin-plate splines and the
+  decomposition of deformations." *IEEE Transactions on Pattern Analysis
+  and Machine Intelligence*, 11(6), 567–585.
+  https://doi.org/10.1109/34.24792
+  (Canonical reference for TPS in computer vision / image warping.)
+
+- Duchon, J. (1977). "Splines minimizing rotation-invariant semi-norms in
+  Sobolev spaces." In W. Schempp & K. Zeller (Eds.), *Constructive Theory
+  of Functions of Several Variables*, Lecture Notes in Mathematics 571,
+  pp. 85-100. Springer.
+  (Mathematical foundation: existence, uniqueness, and the φ = r² log r kernel.)
+
+- Wahba, G. (1990). *Spline Models for Observational Data*. SIAM.
+  (Chapter 2 covers the thin-plate spline energy minimisation framework.)
+
+- GDAL ``gdal_tps.cpp`` — Frank Warmerdam / Even Rouault, based on
+  VizGeorefSpline2D by Gilad Ronnen (VIZRT Inc.), supported by Centro di
+  Ecologia Alpina.
+  https://github.com/osgeo/gdal/blob/master/alg/gdal_tps.cpp
+  (Production C++ reference implementation used in GDAL/OGR reprojection.)
 """
 
 # Python Standard Libraries
@@ -43,26 +100,51 @@ from tmns.geo.proj.base import Projector, Transformation_Type
 
 
 class TPS(Projector):
-    """
-    Thin Plate Spline projector for non-linear transformations.
+    """Thin Plate Spline projector for non-linear pixel ↔ geographic transforms.
 
-    The TPS interpolates exactly through all provided control points while minimizing
-    bending energy. It is well-suited for modeling smooth distortions in satellite imagery
-    and for applications requiring precise local control with global smoothness.
+    Fits a TPS model from a set of Ground Control Points (GCPs) and provides
+    exact forward interpolation (pixel → geographic) at all control points,
+    plus iterative Newton inversion (geographic → pixel).
 
-    Notes:
-    - Forward transformation (pixel → geographic) is exact at control points
-    - Inverse transformation (geographic → pixel) uses a simplified nearest-neighbor
-      approximation and may have significant error for points far from control points
-    - Requires at least 3 non-collinear control points
-    - Control points should be well-distributed across the image for best results
+    The TPS is particularly suitable for:
 
-    Attributes:
-        _control_points: List of (Pixel, Geographic) control point tuples
-        _weights_x: Solved radial basis weights for longitude
-        _weights_y: Solved radial basis weights for latitude
-        _linear_terms_x: Linear affine coefficients for longitude (a₁, a₂, a₃)
-        _linear_terms_y: Linear affine coefficients for latitude (a₁, a₂, a₃)
+    - **Sensor distortion correction**: roll/pitch jitter in pushbroom sensors
+      that cannot be captured by a global polynomial.
+    - **Historical map georeferencing**: irregular paper deformation and
+      projection discontinuities.
+    - **Residual correction**: refining an RPC or affine model by absorbing
+      systematic local errors with a TPS overlay.
+
+    Fitting (``update_model``) solves the (N+3)×(N+3) saddle-point linear system
+    described in the module docstring.  The solution cost scales as O(N³), so
+    for large GCP sets (> a few hundred points) consider a sparse/approximate
+    variant (e.g. the GDAL implementation uses LAPACK via Armadillo for speed).
+
+    See module docstring and ``update_model`` for the full mathematical detail.
+
+    Properties
+    ----------
+    - Forward transformation (``source_to_geographic``) is **exact** at control
+      points and smooth between them.
+    - Inverse transformation (``geographic_to_source``) uses Newton iteration
+      with a numerical Jacobian; converges to sub-pixel accuracy in 3–10
+      iterations for well-conditioned GCP sets.
+    - Requires at least **3 non-collinear** control points.
+    - GCPs should be distributed across the image; clustering degrades
+      the condition number of K.
+
+    Attributes
+    ----------
+    _control_points : List of (Pixel, Geographic)
+        GCPs used to fit the model.
+    _weights_x : np.ndarray, shape (N,)
+        Radial basis weights wᵢ for the longitude component.
+    _weights_y : np.ndarray, shape (N,)
+        Radial basis weights wᵢ for the latitude component.
+    _linear_terms_x : tuple (a₁, a₂, a₃)
+        Affine coefficients for longitude: lon ≈ a₁ + a₂·x + a₃·y at large scales.
+    _linear_terms_y : tuple (a₁, a₂, a₃)
+        Affine coefficients for latitude:  lat ≈ a₁ + a₂·x + a₃·y at large scales.
     """
 
     def __init__(self):
@@ -74,16 +156,24 @@ class TPS(Projector):
         self._linear_terms_y: Tuple[float, float, float] = (0.0, 0.0, 0.0)
 
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform pixel coordinates to geographic using TPS.
+        """Transform source image pixel to geographic coordinates via TPS.
+
+        Evaluates the interpolant::
+
+            lon(x,y) = a₁ + a₂·x + a₃·y + Σᵢ wᵢ · φ(‖(x,y)-(xᵢ,yᵢ)‖²)
+            lat(x,y) = b₁ + b₂·x + b₃·y + Σᵢ vᵢ · φ(‖(x,y)-(xᵢ,yᵢ)‖²)
+
+        where φ(r²) = r² log(r²) is the 2-D thin-plate kernel (Duchon 1977).
+        The result is **exact** at all control points.
 
         Args:
-            pixel: Source pixel coordinates
+            pixel: Source image pixel coordinates (x_px, y_px).
 
         Returns:
-            Geographic coordinates computed via TPS interpolation
+            Geographic coordinates (latitude_deg, longitude_deg).
 
         Raises:
-            ValueError: If model not fitted or no control points available
+            ValueError: If ``update_model`` has not been called.
         """
         if self._weights_x is None or self._weights_y is None:
             raise ValueError("TPS model not fitted. Call update_model() with control points first.")
@@ -118,20 +208,32 @@ class TPS(Projector):
         return Geographic(latitude_deg=lat, longitude_deg=lon)
 
     def geographic_to_source(self, geo: Geographic) -> Pixel:
-        """Transform geographic coordinates to pixel using iterative Newton inversion.
+        """Transform geographic coordinates to source image pixel via Newton iteration.
 
-        Solves the non-linear TPS inverse by iteratively minimizing the residual
-        between the forward TPS output and the target geographic coordinates.
-        Uses a numerical Jacobian computed via finite differences.
+        The TPS inverse has no closed form, so this method solves the non-linear
+        system f(x,y) = (lon_target, lat_target) iteratively::
+
+            xₖ₊₁ = xₖ + J⁻¹(xₖ) · [lon_target − f_lon(xₖ),
+                                      lat_target − f_lat(xₖ)]ᵀ
+
+        where J is the 2×2 Jacobian of the forward TPS (∂lon/∂x, ∂lon/∂y,
+        ∂lat/∂x, ∂lat/∂y) approximated by forward finite differences with
+        step ε = 0.5 px.
+
+        Initial guess: pixel coordinates of the nearest GCP in geographic space.
+
+        Convergence criterion: |Δlat| < 1e-7° and |Δlon| < 1e-7° (≈ 0.01 m).
+        Typically converges in 3–10 iterations for well-conditioned models.
+        Iteration stops early if the Jacobian becomes singular (det < 1e-15).
 
         Args:
-            geo: Geographic coordinates to transform
+            geo: Target geographic coordinates.
 
         Returns:
-            Pixel coordinates recovered via Newton iteration
+            Source image pixel coordinates recovered by Newton iteration.
 
         Raises:
-            ValueError: If model not fitted or no control points available
+            ValueError: If ``update_model`` has not been called.
         """
         if self._weights_x is None or self._weights_y is None:
             raise ValueError("TPS model not fitted. Call update_model() with control points first.")
@@ -188,18 +290,33 @@ class TPS(Projector):
 
 
     def update_model(self, **kwargs) -> None:
-        """Fit TPS model to control points.
+        """Fit the TPS model to a set of Ground Control Points.
 
-        Args:
-            control_points: List of (Pixel, Geographic) tuples for fitting
+        Assembles and solves the (N+3)×(N+3) saddle-point system (see module
+        docstring).  The matrix has the block structure::
+
+            K  = φ(‖pᵢ − pⱼ‖²)  for i,j ∈ [0,N)   (radial basis block)
+            P  = [1, xᵢ, yᵢ]     for i ∈ [0,N)      (polynomial block)
+
+            ┌ K   P ┐ ┌ w ┐   ┌ z ┐
+            │       │ │   │ = │   │
+            └ Pᵀ  0 ┘ └ a ┘   └ 0 ┘
+
+        Solved twice (once for longitude targets, once for latitude targets)
+        using ``numpy.linalg.solve``.  Cost scales as O(N³); for N > ~200
+        consider switching to a sparse or LAPACK-backed solver (cf. the GDAL
+        implementation which uses Armadillo when available).
+
+        Keyword Args:
+            control_points: ``List[Tuple[Pixel, Geographic]]`` — at least 3
+                non-collinear GCPs.
 
         Raises:
-            ValueError: If control_points missing, insufficient, or collinear
+            ValueError: If ``control_points`` is missing, has fewer than 3
+                entries, or if the linear system is singular (collinear points).
 
-        Notes:
-            - Builds the TPS matrix system with radial basis functions and linear constraints
-            - Solves for radial basis weights and affine linear terms
-            - Requires at least 3 non-collinear control points
+        References:
+            Bookstein (1989), Section III; GDAL gdal_tps.cpp ``GDALCreateTPSTransformer``.
         """
         if 'control_points' not in kwargs:
             raise ValueError("control_points required for TPS projector")
@@ -253,7 +370,19 @@ class TPS(Projector):
             raise ValueError("Failed to solve TPS system - control points may be collinear")
 
     def _compute_radial_basis(self, x1: float, y1: float, x2: float, y2: float) -> float:
-        """Compute radial basis function for TPS."""
+        """Evaluate the 2-D thin-plate spline kernel φ(r²) = r² · log(r²).
+
+        This is the unique radially-symmetric function in ℝ² that minimises
+        the Sobolev bending-energy semi-norm (Duchon 1977).  The limit
+        φ(0) = 0 is enforced explicitly (L'Hôpital: r² log r² → 0 as r→0).
+
+        Args:
+            x1, y1: Coordinates of the evaluation point.
+            x2, y2: Coordinates of the control point.
+
+        Returns:
+            φ(r²) = r² · log(r²), or 0.0 if r² < 1e-10.
+        """
         dx = x1 - x2
         dy = y1 - y2
         r_squared = dx * dx + dy * dy
