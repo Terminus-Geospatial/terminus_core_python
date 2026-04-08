@@ -178,8 +178,8 @@ class Test_EPSG_Manager:
 
         # Test lookup by string
         code2 = Manager.to_epsg_code("EPSG:4326")
-        assert isinstance(code2, Code)
-        assert code2.value == 4326
+        assert isinstance(code2, int)
+        assert code2 == 4326
 
     def test_manager_epsg_description(self):
         """Test EPSG code description lookup."""

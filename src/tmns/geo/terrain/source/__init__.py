@@ -8,28 +8,32 @@
 #*                                                                                    *#
 #**************************** INTELLECTUAL PROPERTY RIGHTS ****************************#
 #
-#    File:    coordinate_types.py
+#    File:    __init__.py
 #    Author:  Marvin Smith
-#    Date:    04/04/2026
+#    Date:    4/7/2026
 #
 """
-Coordinate type definitions.
+Elevation source module.
+
+This module provides elevation data sources with a clean, extensible architecture.
+All elevation sources inherit from a common Base class and provide consistent
+interfaces for accessing elevation data.
 """
 
 # Python Standard Libraries
-from enum import Enum
+from typing import Any
 
+# Project Libraries
+from tmns.geo.terrain.source.base import Base
+from tmns.geo.terrain.source.geotiff import GeoTIFF
+from tmns.geo.terrain.source.flat import Flat
 
-class Type(Enum):
-    """Supported coordinate types."""
-    GEOGRAPHIC = "geographic"
-    UTM = "utm"
-    UPS = "ups"
-    WEB_MERCATOR = "web_mercator"
-    ECEF = "ecef"
-    PIXEL = "pixel"
-
-
+# Export all source components
 __all__ = [
-    'Type',
+    # Base class
+    'Base',
+
+    # Specific implementations
+    'GeoTIFF',
+    'Flat',
 ]

@@ -33,6 +33,7 @@ import pyproj
 
 # Project Libraries
 from tmns.geo.coord.epsg import Manager, Code
+from tmns.geo.coord.types import Type
 
 
 @dataclass
@@ -47,9 +48,11 @@ class CRS:
     Attributes:
         epsg_code: EPSG code identifier for the CRS
         _pyproj_crs: Lazy-loaded pyproj CRS object
+        _definition: Lazy-loaded CRS definition string
     """
     epsg_code: int
     _pyproj_crs: pyproj.CRS = None  # Lazy-loaded pyproj CRS object
+    _definition: str = None  # Lazy-loaded CRS definition
 
     def __post_init__(self):
         """Validate EPSG code and prepare for lazy loading."""
@@ -70,6 +73,18 @@ class CRS:
         if self._pyproj_crs is None:
             self._pyproj_crs = pyproj.CRS.from_epsg(self.epsg_code)
         return self._pyproj_crs
+
+    @property
+    def definition(self) -> str:
+        """
+        Get CRS definition string (lazy-loaded).
+
+        Returns:
+            CRS definition string from pyproj
+        """
+        if self._definition is None:
+            self._definition = str(self.pyproj_crs)
+        return self._definition
 
     # ============================================================================
     # CLASS METHODS

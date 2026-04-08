@@ -24,8 +24,9 @@ import pyproj
 from pyproj import CRS
 
 # Project Libraries
-from tmns.geo.coord.types import Coordinate_Type
-from tmns.geo.coord.epsg import EPSG_Manager
+from tmns.geo.coord.types import Type
+from tmns.geo.coord.epsg import Manager, Code
+from tmns.geo.coord.crs import CRS
 from tmns.geo.coord.geographic import Geographic
 from tmns.geo.coord.utm import UTM
 from tmns.geo.coord.ups import UPS
@@ -45,13 +46,28 @@ class Transformer:
         self._transformers: dict[tuple[str, str], pyproj.Transformer] = {}
 
     def _get_transformer(self, from_crs: str, to_crs: str) -> pyproj.Transformer:
-        """Get or create a transformer for the given CRS pair."""
+        """Get or create a pyproj transformer for the given CRS pair."""
         key = (from_crs, to_crs)
 
         if key not in self._transformers:
             try:
+                # Extract integer EPSG codes from strings or CRS objects
+                if hasattr(from_crs, 'epsg_code'):
+                    from_epsg = from_crs.epsg_code
+                elif ':' in from_crs:
+                    from_epsg = int(from_crs.replace('EPSG:', ''))
+                else:
+                    from_epsg = int(from_crs)
+
+                if hasattr(to_crs, 'epsg_code'):
+                    to_epsg = to_crs.epsg_code
+                elif ':' in to_crs:
+                    to_epsg = int(to_crs.replace('EPSG:', ''))
+                else:
+                    to_epsg = int(to_crs)
+
                 self._transformers[key] = pyproj.Transformer.from_crs(
-                    CRS(from_crs), CRS(to_crs), always_xy=True
+                    pyproj.CRS(from_epsg), pyproj.CRS(to_epsg), always_xy=True
                 )
             except Exception as e:
                 raise ValueError(f"Cannot create transformer from {from_crs} to {to_crs}: {e}")
@@ -114,8 +130,60 @@ class Transformer:
         lon, lat, alt = transformer.transform(ecef.x_m, ecef.y_m, ecef.z_m)
         return Geographic.create(lat, lon, alt)
 
+    def transform(self, coord: Coordinate, target_crs: Union[str, CRS]) -> Coordinate:
+        """Transform coordinate to target CRS.
+
+        Args:
+            coord: Source coordinate
+            target_crs: Target CRS string (e.g., 'EPSG:4326') or CRS object
+
+        Returns:
+            Transformed coordinate in target CRS
+
+        Raises:
+            ValueError: If transformation is not supported
+        """
+        # Validate input coordinate
+        if coord is None:
+            raise ValueError("Coordinate cannot be None")
+
+        # Convert CRS object to string if needed
+        if hasattr(target_crs, 'epsg_code'):
+            target_crs_str = f"EPSG:{target_crs.epsg_code}"
+        else:
+            target_crs_str = str(target_crs)
+
+        # Get source CRS from coordinate
+        if hasattr(coord, 'crs'):
+            source_crs = coord.crs
+        elif hasattr(coord, 'epsg_code'):
+            source_crs = f"EPSG:{coord.epsg_code}"
+        else:
+            # For coordinates without explicit CRS, infer from type
+            source_type = coord.type()
+            if source_type == Type.GEOGRAPHIC:
+                source_crs = "EPSG:4326"
+            elif source_type == Type.ECEF:
+                source_crs = "EPSG:4978"
+            elif source_type == Type.WEB_MERCATOR:
+                source_crs = "EPSG:3857"
+            else:
+                # For UTM/UPS, get from coordinate object
+                source_crs = coord.crs
+
+        # If same CRS, return coordinate as-is
+        if source_crs == target_crs_str:
+            return coord
+
+        # Use existing convert method logic
+        target_epsg = Manager.to_epsg_code(target_crs_str)
+        target_type = Manager.get_coordinate_type(target_epsg)
+
+        return self.convert(coord, target_type)
+
+
     # Generic converter (flexible)
-    def convert(self, coord: Coordinate, dest_type: Coordinate_Type) -> Coordinate:
+    def convert(self, coord: Coordinate, dest_type: Type) -> Coordinate:
         """Convert any coordinate to any other coordinate type."""
         # Source type detection
         source_type = coord.type()
@@ -125,89 +193,89 @@ class Transformer:
             return coord
 
         # Geographic as source
-        if source_type == Coordinate_Type.GEOGRAPHIC:
+        if source_type == Type.GEOGRAPHIC:
             geo = coord  # type: ignore
-            if dest_type == Coordinate_Type.UTM:
+            if dest_type == Type.UTM:
                 return self.geo_to_utm(geo)
-            elif dest_type == Coordinate_Type.UPS:
+            elif dest_type == Type.UPS:
                 return self.geo_to_ups(geo)
-            elif dest_type == Coordinate_Type.WEB_MERCATOR:
+            elif dest_type == Type.WEB_MERCATOR:
                 return self.geo_to_web_mercator(geo)
-            elif dest_type == Coordinate_Type.ECEF:
+            elif dest_type == Type.ECEF:
                 return self.geo_to_ecef(geo)
-            elif dest_type == Coordinate_Type.PIXEL:
+            elif dest_type == Type.PIXEL:
                 raise ValueError("Cannot convert directly from Geographic to Pixel")
 
         # UTM as source
-        elif source_type == Coordinate_Type.UTM:
+        elif source_type == Type.UTM:
             utm = coord  # type: ignore
-            if dest_type == Coordinate_Type.GEOGRAPHIC:
+            if dest_type == Type.GEOGRAPHIC:
                 return self.utm_to_geo(utm)
-            elif dest_type == Coordinate_Type.UPS:
+            elif dest_type == Type.UPS:
                 geo = self.utm_to_geo(utm)
                 return self.geo_to_ups(geo)
-            elif dest_type == Coordinate_Type.WEB_MERCATOR:
+            elif dest_type == Type.WEB_MERCATOR:
                 geo = self.utm_to_geo(utm)
                 return self.geo_to_web_mercator(geo)
-            elif dest_type == Coordinate_Type.ECEF:
+            elif dest_type == Type.ECEF:
                 geo = self.utm_to_geo(utm)
                 return self.geo_to_ecef(geo)
-            elif dest_type == Coordinate_Type.PIXEL:
+            elif dest_type == Type.PIXEL:
                 raise ValueError("Cannot convert directly from UTM to Pixel")
 
         # UPS as source
-        elif source_type == Coordinate_Type.UPS:
+        elif source_type == Type.UPS:
             ups = coord  # type: ignore
-            if dest_type == Coordinate_Type.GEOGRAPHIC:
+            if dest_type == Type.GEOGRAPHIC:
                 return self.ups_to_geo(ups)
-            elif dest_type == Coordinate_Type.UTM:
+            elif dest_type == Type.UTM:
                 geo = self.ups_to_geo(ups)
                 return self.geo_to_utm(geo)
-            elif dest_type == Coordinate_Type.WEB_MERCATOR:
+            elif dest_type == Type.WEB_MERCATOR:
                 geo = self.ups_to_geo(ups)
                 return self.geo_to_web_mercator(geo)
-            elif dest_type == Coordinate_Type.ECEF:
+            elif dest_type == Type.ECEF:
                 geo = self.ups_to_geo(ups)
                 return self.geo_to_ecef(geo)
-            elif dest_type == Coordinate_Type.PIXEL:
+            elif dest_type == Type.PIXEL:
                 raise ValueError("Cannot convert directly from UPS to Pixel")
 
         # Web Mercator as source
-        elif source_type == Coordinate_Type.WEB_MERCATOR:
+        elif source_type == Type.WEB_MERCATOR:
             wm = coord  # type: ignore
-            if dest_type == Coordinate_Type.GEOGRAPHIC:
+            if dest_type == Type.GEOGRAPHIC:
                 return self.web_mercator_to_geo(wm)
-            elif dest_type == Coordinate_Type.UTM:
+            elif dest_type == Type.UTM:
                 geo = self.web_mercator_to_geo(wm)
                 return self.geo_to_utm(geo)
-            elif dest_type == Coordinate_Type.UPS:
+            elif dest_type == Type.UPS:
                 geo = self.web_mercator_to_geo(wm)
                 return self.geo_to_ups(geo)
-            elif dest_type == Coordinate_Type.ECEF:
+            elif dest_type == Type.ECEF:
                 geo = self.web_mercator_to_geo(wm)
                 return self.geo_to_ecef(geo)
-            elif dest_type == Coordinate_Type.PIXEL:
+            elif dest_type == Type.PIXEL:
                 raise ValueError("Cannot convert directly from Web Mercator to Pixel")
 
         # ECEF as source
-        elif source_type == Coordinate_Type.ECEF:
+        elif source_type == Type.ECEF:
             ecef = coord  # type: ignore
-            if dest_type == Coordinate_Type.GEOGRAPHIC:
+            if dest_type == Type.GEOGRAPHIC:
                 return self.ecef_to_geo(ecef)
-            elif dest_type == Coordinate_Type.UTM:
+            elif dest_type == Type.UTM:
                 geo = self.ecef_to_geo(ecef)
                 return self.geo_to_utm(geo)
-            elif dest_type == Coordinate_Type.UPS:
+            elif dest_type == Type.UPS:
                 geo = self.ecef_to_geo(ecef)
                 return self.geo_to_ups(geo)
-            elif dest_type == Coordinate_Type.WEB_MERCATOR:
+            elif dest_type == Type.WEB_MERCATOR:
                 geo = self.ecef_to_geo(ecef)
                 return self.geo_to_web_mercator(geo)
-            elif dest_type == Coordinate_Type.PIXEL:
+            elif dest_type == Type.PIXEL:
                 raise ValueError("Cannot convert directly from ECEF to Pixel")
 
         # Pixel as source
-        elif source_type == Coordinate_Type.PIXEL:
+        elif source_type == Type.PIXEL:
             raise ValueError("Cannot convert from Pixel coordinates to other types")
 
         raise ValueError(f"Unsupported conversion from {source_type} to {dest_type}")
@@ -233,12 +301,12 @@ class Transformer:
             elevation = None
 
         # Return appropriate type based on target CRS
-        epsg_code = EPSG_Manager.to_epsg_code(target_crs)
+        epsg_code = Manager.to_epsg_code(target_crs)
 
-        if epsg_code == EPSG_Manager.WEB_MERCATOR:
+        if epsg_code == Code.WEB_MERCATOR:
             return Web_Mercator.create(easting, northing, elevation)
-        elif EPSG_Manager.is_ups_zone(epsg_code):  # UPS North/South
-            hemisphere = EPSG_Manager.get_ups_hemisphere(epsg_code)
+        elif Manager.is_ups_zone(epsg_code):  # UPS North/South
+            hemisphere = Manager.get_ups_hemisphere(epsg_code)
             return UPS.create(easting, northing, hemisphere, elevation)
         else:
             return UTM.create(easting, northing, target_crs, elevation)
@@ -266,22 +334,18 @@ class Transformer:
         """Get UTM zone for the given geographic coordinates."""
         # Handle polar regions (UTM doesn't work well at poles)
         if latitude >= 84.0:  # North pole region
-            return EPSG_Manager.to_epsg_string(EPSG_Manager.UPS_NORTH)
+            return Manager.to_epsg_string(Code.UPS_NORTH)
         elif latitude <= -80.0:  # South pole region
-            return EPSG_Manager.to_epsg_string(EPSG_Manager.UPS_SOUTH)
+            return Manager.to_epsg_string(Code.UPS_SOUTH)
 
         # Calculate UTM zone (1-60)
         zone = int((longitude + 180) / 6) + 1
-        if zone > 60:
-            zone = 60
-        elif zone < 1:
-            zone = 1
 
         # Determine hemisphere and create EPSG code
         hemisphere = "N" if latitude >= 0 else "S"
-        epsg_code = EPSG_Manager.create_utm_epsg(zone, hemisphere)
+        epsg_code = Code.get_utm_zone(zone, hemisphere)
 
-        return EPSG_Manager.to_epsg_string(epsg_code)
+        return Manager.to_epsg_string(epsg_code)
 
     def is_polar_region(self, latitude: float) -> bool:
         """Check if latitude is in polar region where UPS should be used."""
@@ -291,17 +355,17 @@ class Transformer:
         """Get comprehensive information about an EPSG code."""
         return {
             'code': epsg_code,
-            'string': EPSG_Manager.to_epsg_string(epsg_code),
-            'coordinate_type': EPSG_Manager.get_coordinate_type(epsg_code),
-            'description': EPSG_Manager.get_description(epsg_code),
-            'is_utm': EPSG_Manager.is_utm_zone(epsg_code),
-            'is_ups': EPSG_Manager.is_ups_zone(epsg_code),
-            'is_polar': EPSG_Manager.is_polar_region(epsg_code),
+            'string': Manager.to_epsg_string(epsg_code),
+            'coordinate_type': Manager.get_coordinate_type(epsg_code),
+            'description': Manager.get_description(epsg_code),
+            'is_utm': Manager.is_utm_zone(epsg_code),
+            'is_ups': Manager.is_ups_zone(epsg_code),
+            'is_polar': Manager.is_polar_region(epsg_code),
         }
 
     def get_epsg_info_from_string(self, epsg_str: str) -> dict:
         """Get comprehensive information about an EPSG code from string."""
-        epsg_code = EPSG_Manager.to_epsg_code(epsg_str)
+        epsg_code = Manager.to_epsg_code(epsg_str)
         return self.get_epsg_info(epsg_code)
 
     def to_utm(self, geo: Geographic) -> UTM:

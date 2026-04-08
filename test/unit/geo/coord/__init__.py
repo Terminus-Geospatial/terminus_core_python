@@ -8,28 +8,14 @@
 #*                                                                                    *#
 #**************************** INTELLECTUAL PROPERTY RIGHTS ****************************#
 #
-#    File:    coordinate_types.py
+#    File:    __init__.py
 #    Author:  Marvin Smith
-#    Date:    04/04/2026
+#    Date:    4/7/2026
 #
 """
-Coordinate type definitions.
+Test module for coordinate system components.
+
+This module contains unit tests for all coordinate system components
+including geographic, UTM, UPS, ECEF, pixel, web mercator, and
+coordinate transformations.
 """
-
-# Python Standard Libraries
-from enum import Enum
-
-
-class Type(Enum):
-    """Supported coordinate types."""
-    GEOGRAPHIC = "geographic"
-    UTM = "utm"
-    UPS = "ups"
-    WEB_MERCATOR = "web_mercator"
-    ECEF = "ecef"
-    PIXEL = "pixel"
-
-
-__all__ = [
-    'Type',
-]

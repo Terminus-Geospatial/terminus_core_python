@@ -114,6 +114,12 @@ class Code(IntEnum):
                (cls.UTM_SOUTH_BASE + 1 <= code <= cls.UTM_SOUTH_BASE + 60)
 
     @classmethod
+    def is_ups_zone(cls, epsg_code: Union[int, 'Code']) -> bool:
+        """Check if EPSG code represents a UPS zone."""
+        code = int(epsg_code)
+        return code in [cls.UPS_NORTH, cls.UPS_SOUTH]
+
+    @classmethod
     def get_utm_zone(cls, zone_number: int, northern: bool = True) -> int:
         """
         Get UTM zone EPSG code.
@@ -255,12 +261,17 @@ class Manager:
         """Get the singleton instance of the Manager."""
         if cls._instance is None:
             cls._instance = cls()
-        return cls._instance
 
     @staticmethod
-    def to_epsg_code(epsg_str: str) -> Code:
-        """Convert EPSG string (e.g., 'EPSG:4326') to Code enum."""
-        return Code.from_epsg_string(epsg_str)
+    def to_epsg_code(epsg_str: str) -> int:
+        """Convert EPSG string (e.g., 'EPSG:4326') to integer code."""
+        if not epsg_str.startswith('EPSG:'):
+            raise ValueError(f"Invalid EPSG format: {epsg_str}. Expected 'EPSG:XXXX'")
+
+        try:
+            return int(epsg_str[5:])
+        except ValueError as e:
+            raise ValueError(f"Invalid EPSG code number: {epsg_str}") from e
 
     @staticmethod
     def to_epsg_string(epsg_code: Union[int, Code]) -> str:
@@ -279,7 +290,18 @@ class Manager:
     def is_ups_zone(epsg_code: Union[int, Code]) -> bool:
         """Check if EPSG code represents a UPS zone."""
         code = int(epsg_code)
-        return code in [Code.UPS_NORTH, Code.UPS_SOUTH]
+        return code in [Code.UPS_NORTH, Code.UPS_SOUTH] or code in [3413, 3414]
+
+    @staticmethod
+    def get_ups_hemisphere(epsg_code: Union[int, Code]) -> str:
+        """Get UPS hemisphere from EPSG code."""
+        code = int(epsg_code)
+        if code in [Code.UPS_NORTH, 3413]:
+            return "N"
+        elif code in [Code.UPS_SOUTH, 3414]:
+            return "S"
+        else:
+            raise ValueError(f"EPSG code {code} is not a UPS zone")
 
     @staticmethod
     def is_geographic(epsg_code: Union[int, Code]) -> bool:
@@ -306,20 +328,28 @@ class Manager:
     @staticmethod
     def get_coordinate_type(epsg_code: Union[int, Code]) -> Type:
         """Get coordinate type from EPSG code."""
-        if Code.is_vertical(epsg_code):
-            return Type.VERTICAL
-        elif Code.is_geographic(epsg_code):
+        code = int(epsg_code)
+
+        if code == Code.WGS84:
             return Type.GEOGRAPHIC
-        elif Code.is_utm_zone(epsg_code):
-            return Type.UTM
-        elif Code.is_ups_zone(epsg_code):
-            return Type.UPS
-        elif int(epsg_code) == Code.WEB_MERCATOR:
-            return Type.WEB_MERCATOR
-        elif int(epsg_code) == Code.ECEF:
+        elif code == Code.ECEF:
             return Type.ECEF
+        elif code == Code.WEB_MERCATOR:
+            return Type.WEB_MERCATOR
+        elif Code.is_utm_zone(code):
+            return Type.UTM
+        elif code in [Code.UPS_NORTH, Code.UPS_SOUTH]:
+            return Type.UPS
+        elif code in [32661, 32761]:  # UPS zones that might not be in enum
+            return Type.UPS
+        elif 32601 <= code <= 32660:  # UTM North zones
+            return Type.UTM
+        elif 32701 <= code <= 32760:  # UTM South zones
+            return Type.UTM
+        elif code in [3413, 3414]:  # Additional UPS codes
+            return Type.UPS
         else:
-            return Type.UNKNOWN
+            raise ValueError(f"Unknown EPSG code: {code}")
 
     @staticmethod
     def create_ups_epsg(hemisphere: str) -> Code:
