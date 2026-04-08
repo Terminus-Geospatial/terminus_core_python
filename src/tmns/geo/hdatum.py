@@ -8,12 +8,15 @@
 #*                                                                                    *#
 #**************************** INTELLECTUAL PROPERTY RIGHTS ****************************#
 #
-#    File:    datum.py
+#    File:    hdatum.py
 #    Author:  Marvin Smith
 #    Date:    4/4/2026
 #
 """
-Geodetic datum definitions and utilities.
+Horizontal geodetic datum definitions and utilities.
+
+This module contains horizontal reference ellipsoid definitions used for
+geodetic calculations and coordinate transformations.
 """
 
 # Python Standard Libraries
@@ -31,9 +34,9 @@ from tmns.geo.coord.transformer import Transformer
 
 
 @dataclass
-class Datum:
+class Base:
     """
-    Geodetic datum with ellipsoidal parameters.
+    Horizontal geodetic datum with ellipsoidal parameters.
 
     Represents a reference ellipsoid used for geodetic calculations. Provides
     methods for ray-ellipsoid intersection and coordinate transformations.
@@ -171,7 +174,7 @@ class Datum:
             return False
 
 
-class WGS84(Datum):
+class WGS84(Base):
     """
     WGS84 (World Geodetic System 1984) datum.
 

@@ -222,7 +222,7 @@ print(f"Source: {elev_point.source}")
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
 4. Run tests (`pytest`)
-5. Run linting (`ruff check --fix`)
+5. Run linting (`ruff check --fix .`)
 6. Commit your changes (`git commit -m 'Add amazing feature'`)
 7. Push to branch (`git push origin feature/amazing-feature`)
 8. Open a Pull Request
@@ -231,8 +231,51 @@ print(f"Source: {elev_point.source}")
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## TODO
+
+### Unit Tests
+
+The following components need comprehensive unit test coverage:
+
+#### High Priority
+- [ ] **Terrain Source Module** (`src/tmns/geo/terrain/source/`)
+  - [ ] `Base` abstract class methods
+  - [ ] `GeoTIFF` implementation (coordinate transformations, interpolation)
+  - [ ] `Flat` implementation (edge cases, coordinate validation)
+  - [ ] Error handling and edge cases
+
+- [ ] **Terrain Manager** (`src/tmns/geo/terrain/manager.py`)
+  - [ ] Singleton pattern behavior
+  - [ ] Caching functionality
+  - [ ] Source priority management
+  - [ ] Coordinate transformation handling
+
+#### Medium Priority
+- [ ] **Catalog** (`src/tmns/geo/terrain/catalog.py`)
+  - [ ] Source discovery logic
+  - [ ] Multi-source coordination
+  - [ ] File system operations
+
+#### Integration Tests
+- [ ] Cross-module integration tests
+- [ ] Performance benchmarks
+- [ ] Real-world data validation
+- [ ] Error recovery scenarios
+
+### Test Data Requirements
+- [ ] Sample GeoTIFF files for testing
+- [ ] Known elevation data for validation
+- [ ] Test coordinate sets covering different regions
+- [ ] Mock data for edge cases
+
+### Geographic Class Enhancements
+- [ ] **Vincenty Formula Implementation** (`src/tmns/geo/coord/geographic.py`)
+  - [ ] Vincenty formula implementation for accurate bearing calculations
+  - [ ] Vincenty formula implementation for accurate distance calculations
+  - [ ] Compare Vincenty vs Haversine accuracy for different use cases
+  - [ ] Performance optimization for batch calculations
+
 ## Support
 
-- **Documentation**: [https://terminus-core-python.readthedocs.io](https://terminus-core-python.readthedocs.io)
 - **Issues**: [GitHub Issues](https://github.com/Terminus-Geospatial/terminus-core-python/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Terminus-Geospatial/terminus-core-python/discussions)
