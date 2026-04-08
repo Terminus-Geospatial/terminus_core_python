@@ -34,7 +34,7 @@ from tmns.geo.coord.geographic import Geographic
 from tmns.geo.coord.ecef import ECEF
 from tmns.geo.coord.pixel import Pixel
 from tmns.geo.coord.transformer import Transformer
-from tmns.geo.datum import WGS84
+from tmns.geo.hdatum import WGS84
 from tmns.geo.ltp import Local_Tangent_Plane
 
 
