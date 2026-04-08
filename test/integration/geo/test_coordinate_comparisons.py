@@ -20,18 +20,12 @@ Integration tests comparing bearing and distance calculations across coordinate 
 import math
 
 # Third-Party Libraries
-import numpy as np
 import pytest
 
 # Project Libraries
 from tmns.geo.coord import (
     Geographic,
-    UTM,
-    UPS,
-    Web_Mercator,
-    ECEF,
     Transformer,
-    Type,
 )
 
 

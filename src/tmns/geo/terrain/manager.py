@@ -24,12 +24,10 @@ Key Features:
 - Automatic coordinate type conversion
 - Vertical datum transformations
 - Persistent caching for performance
-- Singleton pattern for global access
 """
 
 # Python Standard Libraries
 import logging
-import os
 import pickle
 import tempfile
 from dataclasses import dataclass, field
@@ -37,12 +35,15 @@ from pathlib import Path
 from typing import Any
 
 # Project Libraries
-from tmns.geo.coord import Transformer, Geographic, Coordinate, Type
-from tmns.geo.terrain.source import Base, GeoTIFF
+from tmns.geo.coord import Coordinate, Geographic, Transformer, Type
+from tmns.geo.coord.vdatum import Base as VBase
+from tmns.geo.terrain.catalog import Catalog
 from tmns.geo.terrain.elevation_point import Elevation_Point
 from tmns.geo.terrain.interpolation import Interpolation_Method
-from tmns.geo.terrain.catalog import Catalog
-from tmns.geo.coord.vdatum import Base as VBase, ELIPSOIDAL_DATUM
+from tmns.geo.terrain.source import Base, GeoTIFF
+
+# Module-level singleton instance for convenience functions
+_default_manager: 'Manager' | None = None
 
 
 @dataclass
@@ -72,9 +73,6 @@ class Manager:
     elevation_cache: dict[str, Elevation_Point] = field(default_factory=dict)
     coord_transformer: Transformer = field(default_factory=Transformer)
 
-    # Class variable for singleton instance
-    _instance: Manager | None = None
-
     def __post_init__(self):
         """Initialize manager after dataclass creation."""
         # Ensure cache directory exists
@@ -92,17 +90,6 @@ class Manager:
         for source in self.sources:
             if hasattr(source, 'interpolation'):
                 source.interpolation = self.interpolation
-
-    @classmethod
-    def global_instance(cls) -> 'Manager':
-        """Get the global singleton terrain manager instance.
-
-        Returns:
-            The singleton Manager instance, creating it if necessary
-        """
-        if cls._instance is None:
-            cls._instance = cls.create_default()
-        return cls._instance
 
     @classmethod
     def create_default(cls, cache_enabled: bool = True,
@@ -124,8 +111,8 @@ class Manager:
         try:
             catalog = Catalog()
             return cls([catalog], cache_enabled, interpolation, default_vertical_datum)
-        except Exception as e:
-            raise ValueError("No terrain sources available. Please ensure GeoTIFF files are in the catalog directory.")
+        except Exception:
+            raise ValueError("No terrain sources available. Please ensure GeoTIFF files are in the catalog directory.") from None
 
     @classmethod
     def create_catalog_only(cls, catalog_root: str | Path | None = None,
@@ -150,20 +137,6 @@ class Manager:
         if not catalog.sources:
             raise ValueError(f"No terrain sources found in catalog: {catalog.catalog_root}")
         return cls([catalog], cache_enabled, interpolation, default_vertical_datum)
-
-    @classmethod
-    def get_default(cls) -> 'Manager':
-        """Get the global default terrain manager instance (alias for global_instance)."""
-        return cls.global_instance()
-
-    @classmethod
-    def reset_global_instance(cls):
-        """Reset the global singleton instance.
-
-        Useful for testing and when you need to reinitialize the manager
-        with different configuration.
-        """
-        cls._instance = None
 
     def add_local_dem(self, dem_file: str | Path, vertical_datum: VBase | None = None):
         """Add a local DEM file as a high-priority elevation source.
@@ -352,7 +325,7 @@ class Manager:
             try:
                 self.cache_file.unlink()
                 logging.info("Removed problematic cache file")
-            except:
+            except OSError:
                 pass
 
     def _save_cache(self):
@@ -360,7 +333,18 @@ class Manager:
         try:
             with open(self.cache_file, 'wb') as f:
                 pickle.dump(self.elevation_cache, f)
-        except (IOError, pickle.PickleError) as e:
+        except (OSError, pickle.PickleError) as e:
             logging.warning(f"Could not save elevation cache: {e}")
 
+
+def get_default_manager() -> Manager:
+    """Get the default terrain manager instance (singleton pattern for caching).
+
+    Returns:
+        The singleton Manager instance, creating it if necessary
+    """
+    global _default_manager
+    if _default_manager is None:
+        _default_manager = Manager.create_default()
+    return _default_manager
 

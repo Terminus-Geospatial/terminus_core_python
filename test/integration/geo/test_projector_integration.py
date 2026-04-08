@@ -16,11 +16,9 @@
 Integration tests for Projector API
 """
 
-import pytest
-import numpy as np
 
 from tmns.geo.coord import Geographic, Pixel
-from tmns.geo.proj import Transformation_Type, Identity, Affine, RPC, TPS
+from tmns.geo.proj import Affine, Identity, Transformation_Type
 
 
 class TestProjector_Integration:

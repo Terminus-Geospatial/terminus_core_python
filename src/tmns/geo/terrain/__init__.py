@@ -31,12 +31,13 @@ import numpy as np
 
 # Project Libraries
 from tmns.geo.coord import Coordinate, Geographic, Type
-from tmns.geo.coord.vdatum import Base as VBase, EGM96_DATUM, NAVD88_DATUM, ELIPSOIDAL_DATUM
-from tmns.geo.terrain.source import Base, GeoTIFF, Flat
+from tmns.geo.coord.vdatum import EGM96_DATUM, ELIPSOIDAL_DATUM, NAVD88_DATUM
+from tmns.geo.coord.vdatum import Base as VBase
+from tmns.geo.terrain.catalog import Catalog
 from tmns.geo.terrain.elevation_point import Elevation_Point
 from tmns.geo.terrain.interpolation import Interpolation_Method
-from tmns.geo.terrain.catalog import Catalog
-from tmns.geo.terrain.manager import Manager
+from tmns.geo.terrain.manager import Manager, get_default_manager
+from tmns.geo.terrain.source import Base, Flat, GeoTIFF
 
 
 def elevation(coord: Coordinate, vertical_datum: VBase | None = None) -> float | None:
@@ -50,7 +51,7 @@ def elevation(coord: Coordinate, vertical_datum: VBase | None = None) -> float |
     Returns:
         Elevation value in target vertical datum or None if not found
     """
-    manager = Manager.global_instance()
+    manager = get_default_manager()
     return manager.elevation(coord, vertical_datum)
 
 
@@ -65,7 +66,7 @@ def elevation_point(coord: Coordinate, vertical_datum: VBase | None = None) -> E
     Returns:
         Elevation point with metadata in target vertical datum or None if not found
     """
-    manager = Manager.global_instance()
+    manager = get_default_manager()
     return manager.elevation_point(coord, vertical_datum)
 
 

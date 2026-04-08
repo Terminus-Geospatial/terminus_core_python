@@ -26,8 +26,9 @@ of an image, with x increasing to the right and y increasing downward.
 """
 
 # Python Standard Libraries
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Union
 
 # Project Libraries
 from tmns.geo.coord.types import Type

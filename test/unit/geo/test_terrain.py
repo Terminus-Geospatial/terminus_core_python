@@ -17,29 +17,24 @@ Unit tests for terrain elevation functionality.
 """
 
 # Python Standard Libraries
-import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 # Third-Party Libraries
-import numpy as np
 import pytest
-from rasterio.coords import BoundingBox
-from rasterio.transform import Affine
 
 # Project Libraries
-from tmns.geo.coord import Geographic, UTM, UPS, Web_Mercator, ECEF, Pixel, Transformer
+from tmns.geo.coord import ECEF, UTM, Geographic, Pixel, Web_Mercator
+from tmns.geo.coord.vdatum import ELIPSOIDAL_DATUM
 from tmns.geo.terrain import (
-    Manager,
+    Catalog,
     Elevation_Point,
     GeoTIFF,
-    Catalog,
-    Flat,
+    Interpolation_Method,
+    Manager,
     elevation,
     elevation_point,
-    Interpolation_Method
 )
-from tmns.geo.coord.vdatum import ELIPSOIDAL_DATUM
 
 
 # Fixtures
@@ -202,11 +197,11 @@ class Test_GeoTIFF:
 
         # Test coordinate inside bounds (NYC area)
         coord_inside = Geographic(40.7, -74.0)
-        assert source.contains(coord_inside) == True
+        assert source.contains(coord_inside)
 
         # Test coordinate outside bounds (far away)
         coord_outside = Geographic(0.0, 0.0)
-        assert source.contains(coord_outside) == False
+        assert not source.contains(coord_outside)
 
     def test_elevation_meters(self):
         """Test getting elevation from GeoTIFF."""
@@ -293,7 +288,7 @@ class Test_Terrain_Manager:
         manager = Manager(sources, cache_enabled=False)
 
         assert len(manager.sources) == 1
-        assert manager.cache_enabled == False
+        assert not manager.cache_enabled
         assert manager.coord_transformer is not None
 
     def test_manager_creation_no_sources(self):
@@ -341,7 +336,7 @@ class Test_Terrain_Manager:
 
         # Verify that trying to access elevation_batch raises AttributeError
         with pytest.raises(AttributeError):
-            manager.elevation_batch
+            _ = manager.elevation_batch
 
     def test_coordinate_conversion_in_elevation(self, manager_with_mock_sources):
         """Test that coordinates are properly converted for elevation queries."""
@@ -388,7 +383,6 @@ class Test_Terrain_Manager:
 
     def test_get_cache_stats(self, mock_geotiff_source, sample_geographic_coord):
         """Test getting cache statistics."""
-        coord = sample_geographic_coord
 
         # Test with cache disabled first
         manager_no_cache = Manager([mock_geotiff_source], cache_enabled=False)
@@ -427,7 +421,7 @@ class Test_Terrain_Manager:
 class Test_Convenience_Functions:
     """Test convenience functions."""
 
-    @patch('tmns.geo.terrain.Manager.global_instance')
+    @patch('tmns.geo.terrain.get_default_manager')
     def test_elevation_function(self, mock_get_manager):
         """Test elevation convenience function."""
         mock_manager = Mock()
@@ -440,7 +434,7 @@ class Test_Convenience_Functions:
         assert result == 100.5
         mock_manager.elevation.assert_called_once_with(coord, None)
 
-    @patch('tmns.geo.terrain.Manager.global_instance')
+    @patch('tmns.geo.terrain.get_default_manager')
     def test_elevation_point_function(self, mock_get_manager):
         """Test elevation point convenience function."""
         mock_manager = Mock()

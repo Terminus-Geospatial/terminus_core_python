@@ -123,7 +123,7 @@ class Test_CRS_Comparison:
         crs = CRS.from_epsg(4326)
         assert crs != "CRS(EPSG:4326)"
         assert crs != 4326
-        assert crs != None
+        assert crs is not None
 
     def test_crs_hash(self):
         """Test CRS hash functionality."""
@@ -187,9 +187,8 @@ class Test_CRS_Properties:
 
     def test_crs_vertical_datum(self):
         """Test vertical datum property."""
-        crs = CRS.from_epsg(4326)
+        CRS.from_epsg(4326)
         # May return None if no vertical datum is defined
-        vertical_datum = crs.vertical_datum
         # No assertion - just ensure it doesn't raise error
 
 

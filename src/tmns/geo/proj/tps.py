@@ -89,7 +89,6 @@ References
 
 # Python Standard Libraries
 import math
-from typing import List, Tuple
 
 # Third-Party Libraries
 import numpy as np
@@ -149,11 +148,11 @@ class TPS(Projector):
 
     def __init__(self):
         super().__init__()
-        self._control_points: List[Tuple[Pixel, Geographic]] = []
+        self._control_points: list[tuple[Pixel, Geographic]] = []
         self._weights_x: np.ndarray | None = None
         self._weights_y: np.ndarray | None = None
-        self._linear_terms_x: Tuple[float, float, float] = (0.0, 0.0, 0.0)
-        self._linear_terms_y: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+        self._linear_terms_x: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        self._linear_terms_y: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
         """Transform source image pixel to geographic coordinates via TPS.
@@ -366,8 +365,8 @@ class TPS(Projector):
             self._linear_terms_x = (weights_lon[n], weights_lon[n + 1], weights_lon[n + 2])
             self._linear_terms_y = (weights_lat[n], weights_lat[n + 1], weights_lat[n + 2])
 
-        except np.linalg.LinAlgError:
-            raise ValueError("Failed to solve TPS system - control points may be collinear")
+        except np.linalg.LinAlgError as e:
+            raise ValueError("Failed to solve TPS system - control points may be collinear") from e
 
     def _compute_radial_basis(self, x1: float, y1: float, x2: float, y2: float) -> float:
         """Evaluate the 2-D thin-plate spline kernel φ(r²) = r² · log(r²).
@@ -400,7 +399,7 @@ class TPS(Projector):
     def is_identity(self) -> bool:
         return False
 
-    def image_bounds(self) -> List[Pixel]:
+    def image_bounds(self) -> list[Pixel]:
         """Return image bounding box as 4 corner pixels.
 
         Derives bounds from control point pixel coordinates.
@@ -421,7 +420,7 @@ class TPS(Projector):
             Pixel(x_px=min_x, y_px=max_y),  # Bottom-left
         ]
 
-    def geographic_bounds(self) -> List[Geographic]:
+    def geographic_bounds(self) -> list[Geographic]:
         """Return geographic bounding polygon vertices.
 
         Transforms image_bounds corners to geographic coordinates.

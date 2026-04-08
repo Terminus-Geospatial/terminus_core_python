@@ -16,7 +16,6 @@
 Unit tests for Identity projector
 """
 
-import pytest
 
 from tmns.geo.coord import Geographic, Pixel
 from tmns.geo.proj import Identity, Transformation_Type

@@ -16,16 +16,16 @@
 Catalog for managing local GeoTIFF elevation data sources.
 """
 
-import os
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
 # Project Libraries
 from tmns.geo.coord.geographic import Geographic
-from tmns.geo.terrain.source import Base, GeoTIFF
-from tmns.geo.terrain.interpolation import Interpolation_Method
 from tmns.geo.coord.vdatum import Base as VBase
+from tmns.geo.terrain.interpolation import Interpolation_Method
+from tmns.geo.terrain.source import Base, GeoTIFF
 
 
 class Catalog(Base):

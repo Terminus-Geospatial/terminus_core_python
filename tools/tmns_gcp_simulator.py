@@ -21,21 +21,28 @@ import argparse
 import json
 import logging
 import math
-from typing import List, Tuple
-import numpy as np
 
 # Third-Party Libraries
 from dataclasses import dataclass
+
+import numpy as np
 from scipy.spatial.transform import Rotation
 
-# Project Libraries
-from tmns.io.kml import Writer, Document, Folder, Placemark, Point, Style, Line_Style, Poly_Style
-from tmns.geo.coord.geographic import Geographic
 from tmns.geo.coord.ecef import ECEF
+from tmns.geo.coord.geographic import Geographic
 from tmns.geo.coord.pixel import Pixel
 from tmns.geo.coord.transformer import Transformer
 from tmns.geo.hdatum import WGS84
 from tmns.geo.ltp import Local_Tangent_Plane
+
+# Project Libraries
+from tmns.io.kml import (
+    Folder,
+    Placemark,
+    Point,
+    Style,
+    Writer,
+)
 
 
 @dataclass
@@ -297,7 +304,7 @@ class GCP_Simulator:
         self.camera = camera
         self.extrinsic = extrinsic
 
-    def generate_gcps(self, points_x: int = 10, points_y: int = 10, verbose: bool = False) -> List[Ground_Control_Point]:
+    def generate_gcps(self, points_x: int = 10, points_y: int = 10, verbose: bool = False) -> list[Ground_Control_Point]:
         """
         Generate GCPs in a regular pixel grid pattern with specified number of points.
 
@@ -359,7 +366,7 @@ class GCP_Simulator:
 
         return gcps
 
-    def export_to_json(self, gcps: List[Ground_Control_Point], filename: str) -> None:
+    def export_to_json(self, gcps: list[Ground_Control_Point], filename: str) -> None:
         """
         Export GCPs to JSON file.
 
@@ -417,7 +424,7 @@ class GCP_Simulator:
         with open(filename, 'w') as f:
             json.dump(gcp_data, f, indent=2)
 
-    def export_to_kml(self, gcps: List[Ground_Control_Point], filename: str) -> None:
+    def export_to_kml(self, gcps: list[Ground_Control_Point], filename: str) -> None:
         """
         Export GCPs to KML file.
 
@@ -447,7 +454,7 @@ class GCP_Simulator:
 
             # Create placemark
             placemark = Placemark(
-                name=gcp.name or f"GCP",
+                name=gcp.name or "GCP",
                 description=f"Pixel: ({gcp.pixel.x_px:.1f}, {gcp.pixel.y_px:.1f})\\n"
                            f"World: ({gcp.world.x_m:.1f}, {gcp.world.y_m:.1f}, {gcp.world.z_m:.1f})\\n"
                            f"Lat/Lon: ({geo_point.latitude_deg:.6f}°, {geo_point.longitude_deg:.6f}°)",
@@ -503,7 +510,7 @@ def create_standard_simulator() -> GCP_Simulator:
 
     # Ground plane centered at Bakersfield
     bakersfield_geo = Geographic.create(35.3733, -119.0187, 0.0)
-    ground = Ground_Plane(size=2000.0, center_geo=bakersfield_geo)  # 2km x 2km ground area
+    ground = Local_Tangent_Plane(size=2000.0, center_geo=bakersfield_geo)  # 2km x 2km ground area
 
     return GCP_Simulator(camera, extrinsic, ground)
 
@@ -633,7 +640,7 @@ def main():
     simulator = create_simulator(args)
 
     # Generate GCPs
-    logger.info(f"Generating grid GCPs...")
+    logger.info("Generating grid GCPs...")
 
     # Generate grid with specified number of points
     gcps = simulator.generate_gcps(
@@ -645,7 +652,7 @@ def main():
     logger.info(f"Generated {len(gcps)} GCPs")
 
     # Show first few GCPs
-    for i, gcp in enumerate(gcps[:5]):
+    for _i, gcp in enumerate(gcps[:5]):
         logger.debug(f"  {gcp.name}: Pixel({gcp.pixel.x_px:.1f}, {gcp.pixel.y_px:.1f}) -> "
                     f"World({gcp.world.x_m:.6f}, {gcp.world.y_m:.6f}, {gcp.world.z_m:.6f})")
 

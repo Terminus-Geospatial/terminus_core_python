@@ -17,7 +17,6 @@ Affine projector implementation
 """
 
 # Python Standard Libraries
-from typing import Any, Dict, List, Tuple
 
 # Third-Party Libraries
 import numpy as np
@@ -134,7 +133,7 @@ class Affine(Projector):
     def is_identity(self) -> bool:
         return False
 
-    def solve_from_gcps(self, gcps: List[Tuple[Pixel, Geographic]]) -> None:
+    def solve_from_gcps(self, gcps: list[tuple[Pixel, Geographic]]) -> None:
         """Fit affine transformation matrix from Ground Control Points.
 
         Solves two independent linear systems via least squares::
@@ -173,7 +172,7 @@ class Affine(Projector):
             [0.0, 0.0, 1.0],
         ]))
 
-    def image_bounds(self) -> List[Pixel]:
+    def image_bounds(self) -> list[Pixel]:
         """Return image bounding box as 4 corner pixels.
 
         Uses bounds stored in source_image_attributes (set via update_model).
@@ -190,7 +189,7 @@ class Affine(Projector):
             Pixel(x_px=bounds[0], y_px=bounds[3]),  # Bottom-left
         ]
 
-    def geographic_bounds(self) -> List[Geographic]:
+    def geographic_bounds(self) -> list[Geographic]:
         """Return geographic bounding polygon vertices.
 
         Transforms image_bounds corners to geographic coordinates.

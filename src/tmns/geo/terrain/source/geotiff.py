@@ -25,13 +25,12 @@ from typing import Any
 
 # Third-Party Libraries
 import rasterio
-from rasterio.coords import BoundingBox
 
 # Project Libraries
 from tmns.geo.coord import Geographic, Transformer
+from tmns.geo.coord.vdatum import Base as VBase
 from tmns.geo.terrain.interpolation import Interpolation_Method
 from tmns.geo.terrain.source.base import Base
-from tmns.geo.coord.vdatum import Base as VBase, EGM96_DATUM
 
 
 class GeoTIFF(Base):

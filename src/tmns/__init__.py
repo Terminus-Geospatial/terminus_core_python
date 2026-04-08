@@ -22,7 +22,7 @@ Base structures for Terminus Python APIs.
 import logging
 
 # Project Libraries
-from tmns._version import __version__, __build_date__, __git_hash__
+from tmns._version import __build_date__, __git_hash__, __version__
 
 # Configure logging
 logging.getLogger(__name__).addHandler(logging.NullHandler())

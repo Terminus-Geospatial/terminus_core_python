@@ -39,16 +39,17 @@ Example:
 """
 
 # Python Standard Libraries
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Union
 
 # Third-Party Libraries
 import numpy as np
 
+from tmns.geo.coord.crs import CRS
+
 # Project Libraries
 from tmns.geo.coord.types import Type
-from tmns.geo.coord.epsg import Manager
-from tmns.geo.coord.crs import CRS
 
 
 @dataclass

@@ -24,19 +24,19 @@ extending from approximately -20,037,508 to 20,037,508 meters in both directions
 """
 
 # Python Standard Libraries
+from __future__ import annotations
+
 import math
 from collections import namedtuple
 from dataclasses import dataclass
-from typing import Union
 
 # Third-Party Libraries
 import numpy as np
 
-# Project Libraries
-from tmns.geo.coord.types import Type
-from tmns.geo.coord.epsg import Manager
 from tmns.geo.coord.crs import CRS
 
+# Project Libraries
+from tmns.geo.coord.types import Type
 
 # Web Mercator bounds as namedtuple for lightweight structure
 Web_Mercator_Bounds = namedtuple('Web_Mercator_Bounds', ['min_easting', 'min_northing', 'max_easting', 'max_northing'])

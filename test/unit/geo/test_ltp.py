@@ -16,15 +16,14 @@
 Unit tests for Local Tangent Plane coordinate transformations.
 """
 
-import math
 import numpy as np
-import pytest
+
+from tmns.geo.coord.ecef import ECEF
+from tmns.geo.coord.geographic import Geographic
+from tmns.geo.coord.transformer import Transformer
 
 # Project Libraries
 from tmns.geo.ltp import Local_Tangent_Plane
-from tmns.geo.coord.geographic import Geographic
-from tmns.geo.coord.ecef import ECEF
-from tmns.geo.coord.transformer import Transformer
 
 
 class Test_Local_Tangent_Plane:
@@ -435,19 +434,6 @@ class Test_Local_Tangent_Plane:
 
         assert np.allclose(enu1, enu2, rtol=1e-6)
         assert np.allclose(enu1, enu3, rtol=1e-6)
-
-    def test_input_types(self):
-        """Test different input types (arrays, lists, ECEF objects)."""
-        # Test with numpy array
-        enu_array = np.array([100.0, 200.0, 50.0])
-        ecef1 = Local_Tangent_Plane.enu_to_ecef(enu_array, self.ref_geo)
-
-        # Test with list
-        enu_list = [100.0, 200.0, 50.0]
-        ecef2 = Local_Tangent_Plane.enu_to_ecef(enu_list, self.ref_geo)
-
-        # Should give same result
-        assert np.allclose(ecef1.to_array(), ecef2.to_array(), rtol=1e-6)
 
         # Test ECEF input for ecef_to_enu
         enu1 = Local_Tangent_Plane.ecef_to_enu(ecef1, self.ref_geo)

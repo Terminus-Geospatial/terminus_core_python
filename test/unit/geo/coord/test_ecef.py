@@ -20,7 +20,6 @@ Unit tests for ECEF coordinate functionality.
 import math
 
 # Third-Party Libraries
-import numpy as np
 import pytest
 
 # Project Libraries

@@ -25,15 +25,15 @@ a clean interface for working with different coordinate reference systems.
 """
 
 # Python Standard Libraries
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any
 
 # Third-Party Libraries
 import pyproj
 
 # Project Libraries
-from tmns.geo.coord.epsg import Manager, Code
-from tmns.geo.coord.types import Type
+from tmns.geo.coord.epsg import Code, Manager
 
 
 @dataclass
@@ -239,7 +239,7 @@ class CRS:
             return "unknown"
 
     @property
-    def vertical_datum(self) -> 'VDatumBase':
+    def vertical_datum(self) -> Base:  # noqa: F821
         """
         Get vertical datum.
 

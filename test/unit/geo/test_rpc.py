@@ -16,8 +16,8 @@
 Unit tests for RPC (Rational Polynomial Coefficients) projector
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from tmns.geo.coord import Geographic, Pixel
 from tmns.geo.proj import RPC, Transformation_Type
@@ -429,7 +429,7 @@ class TestRPC:
 
             gcp_geos.append(Geographic(latitude_deg=lat, longitude_deg=lon))
 
-        control_points = list(zip(gcp_pixels, gcp_geos))
+        control_points = list(zip(gcp_pixels, gcp_geos, strict=False))
 
         # Use linear mapping coefficients (pure linear, no distortion)
         # lat = 40 + 2.5*ny -> normalized_lat = 0.5*ny

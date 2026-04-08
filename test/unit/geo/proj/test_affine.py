@@ -23,7 +23,6 @@ Matrix convention (see affine.py):
 """
 
 import math
-from typing import List, Tuple
 
 import numpy as np
 import pytest

@@ -17,19 +17,18 @@ Unit tests for coordinate transformation functionality.
 """
 
 # Python Standard Libraries
-import math
 
 # Third-Party Libraries
-import numpy as np
 import pytest
+
+from tmns.geo.coord.crs import CRS
+from tmns.geo.coord.ecef import ECEF
+from tmns.geo.coord.geographic import Geographic
 
 # Project Libraries
 from tmns.geo.coord.transformer import Transformer
-from tmns.geo.coord.crs import CRS
-from tmns.geo.coord.geographic import Geographic
-from tmns.geo.coord.utm import UTM
-from tmns.geo.coord.ecef import ECEF
 from tmns.geo.coord.ups import UPS
+from tmns.geo.coord.utm import UTM
 from tmns.geo.coord.web_mercator import Web_Mercator
 
 
@@ -59,7 +58,7 @@ class Test_Transformer:
         transformer2 = Transformer()
 
         # Transformer should be stateless, so instances should be equivalent
-        assert type(transformer1) == type(transformer2)
+        assert type(transformer1) is type(transformer2)
 
     def test_geographic_to_utm(self, transformer, nyc_geographic):
         """Test geographic to UTM transformation."""

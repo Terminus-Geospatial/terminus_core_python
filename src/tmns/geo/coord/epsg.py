@@ -21,8 +21,8 @@ formats, and identifying coordinate system types including vertical datums.
 
 # Python Standard Libraries
 from __future__ import annotations
+
 from enum import IntEnum
-from typing import Union
 
 # Project Libraries
 from tmns.geo.coord.types import Type
@@ -73,7 +73,7 @@ class Code(IntEnum):
             return cls.UTM_SOUTH_BASE + zone_number
 
     @classmethod
-    def is_horizontal(cls, epsg_code: Union[int, 'Code']) -> bool:
+    def is_horizontal(cls, epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a horizontal coordinate system."""
         code = int(epsg_code)
         return code in [
@@ -85,7 +85,7 @@ class Code(IntEnum):
         ] or cls.is_utm_zone(code)
 
     @classmethod
-    def is_vertical(cls, epsg_code: Union[int, 'Code']) -> bool:
+    def is_vertical(cls, epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a vertical datum."""
         code = int(epsg_code)
         return code in [
@@ -95,26 +95,26 @@ class Code(IntEnum):
         ]
 
     @classmethod
-    def is_geographic(cls, epsg_code: Union[int, 'Code']) -> bool:
+    def is_geographic(cls, epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a geographic coordinate system."""
         code = int(epsg_code)
         return code == cls.WGS84
 
     @classmethod
-    def is_projected(cls, epsg_code: Union[int, 'Code']) -> bool:
+    def is_projected(cls, epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a projected coordinate system."""
         code = int(epsg_code)
         return code in [cls.WEB_MERCATOR] or cls.is_utm_zone(code)
 
     @classmethod
-    def is_utm_zone(cls, epsg_code: Union[int, 'Code']) -> bool:
+    def is_utm_zone(cls, epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a UTM zone."""
         code = int(epsg_code)
         return (cls.UTM_NORTH_BASE + 1 <= code <= cls.UTM_NORTH_BASE + 60) or \
                (cls.UTM_SOUTH_BASE + 1 <= code <= cls.UTM_SOUTH_BASE + 60)
 
     @classmethod
-    def is_ups_zone(cls, epsg_code: Union[int, 'Code']) -> bool:
+    def is_ups_zone(cls, epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a UPS zone."""
         code = int(epsg_code)
         return code in [cls.UPS_NORTH, cls.UPS_SOUTH]
@@ -143,7 +143,7 @@ class Code(IntEnum):
             return cls.UTM_SOUTH_BASE + zone_number
 
     @classmethod
-    def parse_utm_zone(cls, epsg_code: Union[int, 'Code']) -> tuple[int, bool]:
+    def parse_utm_zone(cls, epsg_code: int | Code) -> tuple[int, bool]:
         """
         Parse UTM zone from EPSG code.
 
@@ -206,7 +206,7 @@ class Code(IntEnum):
         return f"EPSG:{self.value}"
 
     @classmethod
-    def from_epsg_string(cls, epsg_str: str) -> 'Code':
+    def from_epsg_string(cls, epsg_str: str) -> Code:
         """
         Parse EPSG string format (e.g., 'EPSG:4326') to enum.
 
@@ -229,7 +229,7 @@ class Code(IntEnum):
             raise ValueError(f"Invalid EPSG code number: {epsg_str}") from e
 
     @classmethod
-    def from_string(cls, epsg_str: str) -> 'Code':
+    def from_string(cls, epsg_str: str) -> Code:
         """
         Alias for from_epsg_string for backward compatibility.
 
@@ -257,7 +257,7 @@ class Manager:
     _instance = None
 
     @classmethod
-    def global_instance(cls) -> 'Manager':
+    def global_instance(cls) -> Manager:
         """Get the singleton instance of the Manager."""
         if cls._instance is None:
             cls._instance = cls()
@@ -274,7 +274,7 @@ class Manager:
             raise ValueError(f"Invalid EPSG code number: {epsg_str}") from e
 
     @staticmethod
-    def to_epsg_string(epsg_code: Union[int, Code]) -> str:
+    def to_epsg_string(epsg_code: int | Code) -> str:
         """Convert EPSG code to string format (e.g., 'EPSG:4326')."""
         if isinstance(epsg_code, Code):
             return epsg_code.to_epsg_string()
@@ -282,18 +282,18 @@ class Manager:
             return f"EPSG:{epsg_code}"
 
     @staticmethod
-    def is_utm_zone(epsg_code: Union[int, Code]) -> bool:
+    def is_utm_zone(epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a UTM zone."""
         return Code.is_utm_zone(epsg_code)
 
     @staticmethod
-    def is_ups_zone(epsg_code: Union[int, Code]) -> bool:
+    def is_ups_zone(epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a UPS zone."""
         code = int(epsg_code)
         return code in [Code.UPS_NORTH, Code.UPS_SOUTH] or code in [3413, 3414]
 
     @staticmethod
-    def get_ups_hemisphere(epsg_code: Union[int, Code]) -> str:
+    def get_ups_hemisphere(epsg_code: int | Code) -> str:
         """Get UPS hemisphere from EPSG code."""
         code = int(epsg_code)
         if code in [Code.UPS_NORTH, 3413]:
@@ -304,29 +304,29 @@ class Manager:
             raise ValueError(f"EPSG code {code} is not a UPS zone")
 
     @staticmethod
-    def is_geographic(epsg_code: Union[int, Code]) -> bool:
+    def is_geographic(epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a geographic coordinate system."""
         code = int(epsg_code)
         return code == Code.WGS84
 
     @staticmethod
-    def is_projected(epsg_code: Union[int, Code]) -> bool:
+    def is_projected(epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a projected coordinate system."""
         code = int(epsg_code)
         return code in [Code.WEB_MERCATOR] or Code.is_utm_zone(code)
 
     @staticmethod
-    def is_vertical_datum(epsg_code: Union[int, Code]) -> bool:
+    def is_vertical_datum(epsg_code: int | Code) -> bool:
         """Check if EPSG code represents a vertical datum."""
         return Code.is_vertical(epsg_code)
 
     @staticmethod
-    def get_utm_zone(epsg_code: Union[int, Code]) -> tuple[int, bool]:
+    def get_utm_zone(epsg_code: int | Code) -> tuple[int, bool]:
         """Get UTM zone number and hemisphere from EPSG code."""
         return Code.parse_utm_zone(epsg_code)
 
     @staticmethod
-    def get_coordinate_type(epsg_code: Union[int, Code]) -> Type:
+    def get_coordinate_type(epsg_code: int | Code) -> Type:
         """Get coordinate type from EPSG code."""
         code = int(epsg_code)
 
@@ -363,7 +363,7 @@ class Manager:
             raise ValueError(f"Invalid hemisphere: {hemisphere}. Must be 'N' or 'S'.")
 
     @staticmethod
-    def get_vertical_datum(epsg_code: Union[int, Code]):
+    def get_vertical_datum(epsg_code: int | Code):
         """Get vertical datum instance from EPSG code.
 
         Args:
@@ -376,7 +376,7 @@ class Manager:
             ValueError: If EPSG code is not recognized
             NotImplementedError: If vertical datum is not yet implemented
         """
-        from tmns.geo.coord.vdatum import EGM96, NAVD88, Ellipsoidal_Datum
+        from tmns.geo.coord.vdatum import EGM96, NAVD88
 
         code = int(epsg_code)
         if code == Code.EGM96:
@@ -385,6 +385,6 @@ class Manager:
             return NAVD88()
         elif code == Code.MSL:
             # TODO: Implement MSL
-            raise NotImplementedError(f"MSL vertical datum not yet implemented")
+            raise NotImplementedError("MSL vertical datum not yet implemented")
         else:
             raise ValueError(f"Unknown vertical datum EPSG code: {epsg_code}")

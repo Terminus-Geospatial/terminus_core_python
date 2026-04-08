@@ -17,28 +17,28 @@ Projection and coordinate transformation module
 """
 
 # Base classes and enums
-from tmns.geo.proj.base import Projector, Transformation_Type
-
-# Projector implementations
-from tmns.geo.proj.identity import Identity
 from tmns.geo.proj.affine import Affine
-from tmns.geo.proj.rpc import RPC
-from tmns.geo.proj.tps import TPS
+from tmns.geo.proj.base import Projector, Transformation_Type
 
 # Ground Control Points
 from tmns.geo.proj.gcp import GCP
+
+# Projector implementations
+from tmns.geo.proj.identity import Identity
+from tmns.geo.proj.rpc import RPC
+from tmns.geo.proj.tps import TPS
 
 __all__ = [
     # Base classes
     'Projector',
     'Transformation_Type',
-    
+
     # Projector implementations
     'Identity',
-    'Affine', 
+    'Affine',
     'RPC',
     'TPS',
-    
+
     # Ground Control Points
     'GCP',
 ]

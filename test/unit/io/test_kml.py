@@ -19,15 +19,15 @@ Unit tests for KML writer and geometry classes.
 import pytest
 
 from tmns.io.kml import (
-    Color_Value,
-    Color_Mode,
     Altitude_Mode,
-    Point,
-    Line_String,
-    Polygon,
-    Placemark,
-    Folder,
+    Color_Mode,
+    Color_Value,
     Document,
+    Folder,
+    Line_String,
+    Placemark,
+    Point,
+    Polygon,
     Writer,
 )
 
@@ -89,7 +89,7 @@ class TestColor_Mode:
 
     def test_invalid_string(self):
         """Test invalid string raises exception."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             Color_Mode.from_string('invalid')
 
 
@@ -111,7 +111,7 @@ class TestAltitude_Mode:
 
     def test_invalid_string(self):
         """Test invalid string raises exception."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             Altitude_Mode.from_string('invalid')
 
 

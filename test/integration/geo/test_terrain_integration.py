@@ -21,24 +21,22 @@ across various geographic locations and coordinate systems.
 """
 
 # Python Standard Libraries
-from typing import Any
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
 # Third-Party Libraries
 import pytest
 
 # Project Libraries
-from tmns.geo.coord import Geographic, UTM, UPS, Web_Mercator, ECEF, Transformer, Type
+from tmns.geo.coord import Geographic, Transformer, Type
 from tmns.geo.coord.vdatum import ELIPSOIDAL_DATUM
 from tmns.geo.terrain import (
-    Manager,
     Catalog,
-    GeoTIFF,
     Elevation_Point,
+    GeoTIFF,
+    Manager,
     elevation,
-    elevation_point
+    elevation_point,
 )
-
 
 # Test configuration
 ELEVATION_TOLERANCE_METERS = 20.0  # Acceptable difference between sources
@@ -277,7 +275,7 @@ class Test_Terrain_Integration:
 
     def test_convenience_functions(self, mock_catalog):
         """Test global convenience functions."""
-        with patch('tmns.geo.terrain.Manager.global_instance') as mock_get_manager:
+        with patch('tmns.geo.terrain.get_default_manager') as mock_get_manager:
             mock_get_manager.return_value = Manager([mock_catalog], cache_enabled=False)
 
             coord = TEST_LOCATIONS["mountain_whitney"]

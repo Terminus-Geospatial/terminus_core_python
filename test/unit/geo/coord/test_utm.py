@@ -17,16 +17,16 @@ Unit tests for UTM coordinate functionality.
 """
 
 # Python Standard Libraries
-import math
 
 # Third-Party Libraries
 import numpy as np
 import pytest
 
-# Project Libraries
-from tmns.geo.coord.utm import UTM
 from tmns.geo.coord.crs import CRS
 from tmns.geo.coord.types import Type
+
+# Project Libraries
+from tmns.geo.coord.utm import UTM
 
 
 # Fixtures for common objects

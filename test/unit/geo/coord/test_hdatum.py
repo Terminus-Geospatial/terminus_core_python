@@ -16,14 +16,15 @@
 Unit tests for datum definitions.
 """
 
-import math
 import numpy as np
 import pytest
 
-# Project Libraries
-from tmns.geo.hdatum import Base as HBase, WGS84
-from tmns.geo.coord.geographic import Geographic
 from tmns.geo.coord.ecef import ECEF
+from tmns.geo.coord.geographic import Geographic
+from tmns.geo.hdatum import WGS84
+
+# Project Libraries
+from tmns.geo.hdatum import Base as HBase
 
 
 class Test_HBase:

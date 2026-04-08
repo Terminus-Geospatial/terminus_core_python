@@ -24,9 +24,9 @@ from typing import Any
 
 # Project Libraries
 from tmns.geo.coord import Geographic
+from tmns.geo.coord.vdatum import Base as VBase
 from tmns.geo.terrain.interpolation import Interpolation_Method
 from tmns.geo.terrain.source.base import Base
-from tmns.geo.coord.vdatum import Base as VBase, ELIPSOIDAL_DATUM
 
 
 class Flat(Base):

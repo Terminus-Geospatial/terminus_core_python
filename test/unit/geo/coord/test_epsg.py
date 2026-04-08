@@ -17,14 +17,12 @@ Unit tests for EPSG code management functionality.
 """
 
 # Python Standard Libraries
-import math
 
 # Third-Party Libraries
-import numpy as np
 import pytest
 
 # Project Libraries
-from tmns.geo.coord.epsg import Manager, Code
+from tmns.geo.coord.epsg import Code, Manager
 
 
 class Test_EPSG_Manager:
@@ -119,8 +117,8 @@ class Test_EPSG_Manager:
         _, north_hem = Code.parse_utm_zone(zone_north_code)
         _, south_hem = Code.parse_utm_zone(zone_south_code)
 
-        assert north_hem == True
-        assert south_hem == False
+        assert north_hem
+        assert not south_hem
 
     def test_is_web_mercator(self):
         """Test Web Mercator detection."""
@@ -169,7 +167,7 @@ class Test_EPSG_Manager:
 
     def test_manager_epsg_lookup(self):
         """Test EPSG code lookup in Manager."""
-        manager = Manager.global_instance()
+        Manager.global_instance()
 
         # Test lookup by integer
         code1 = Code(4326)
@@ -183,7 +181,7 @@ class Test_EPSG_Manager:
 
     def test_manager_epsg_description(self):
         """Test EPSG code description lookup."""
-        manager = Manager.global_instance()
+        Manager.global_instance()
 
         # Test known EPSG codes
         code = Code(4326)

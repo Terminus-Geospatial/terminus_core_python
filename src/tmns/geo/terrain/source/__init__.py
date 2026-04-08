@@ -25,8 +25,8 @@ from typing import Any
 
 # Project Libraries
 from tmns.geo.terrain.source.base import Base
-from tmns.geo.terrain.source.geotiff import GeoTIFF
 from tmns.geo.terrain.source.flat import Flat
+from tmns.geo.terrain.source.geotiff import GeoTIFF
 
 # Export all source components
 __all__ = [

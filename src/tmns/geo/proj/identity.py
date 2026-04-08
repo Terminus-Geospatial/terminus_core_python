@@ -17,7 +17,6 @@ Identity projector implementation
 """
 
 # Python Standard Libraries
-from typing import List
 
 # Project Libraries
 from tmns.geo.coord import Geographic, Pixel
@@ -47,7 +46,7 @@ class Identity(Projector):
     def transformation_type(self) -> Transformation_Type:
         return Transformation_Type.IDENTITY
 
-    def image_bounds(self) -> List[Pixel]:
+    def image_bounds(self) -> list[Pixel]:
         """Identity has no intrinsic image dimensions.
 
         Set bounds via set_source_image_attributes(bounds=(min_x, min_y, max_x, max_y)).
@@ -64,7 +63,7 @@ class Identity(Projector):
             Pixel(x_px=bounds[0], y_px=bounds[3]),  # Bottom-left
         ]
 
-    def geographic_bounds(self) -> List[Geographic]:
+    def geographic_bounds(self) -> list[Geographic]:
         """Return geographic bounding polygon vertices.
 
         Transforms image_bounds corners to geographic coordinates.

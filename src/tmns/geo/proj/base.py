@@ -19,7 +19,7 @@ Projector base classes and enums
 # Python Standard Libraries
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any
 
 # Project Libraries
 from tmns.geo.coord import Geographic, Pixel
@@ -37,7 +37,7 @@ class Projector(ABC):
     """Abstract base class for coordinate transformation projectors."""
 
     def __init__(self):
-        self._source_image_attrs: Dict[str, Any] = {}
+        self._source_image_attrs: dict[str, Any] = {}
 
     @abstractmethod
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
@@ -68,7 +68,7 @@ class Projector(ABC):
         pass
 
     @abstractmethod
-    def image_bounds(self) -> List[Pixel]:
+    def image_bounds(self) -> list[Pixel]:
         """Return image bounding box as 4 corner pixels.
 
         Returns list of Pixel in order: [top-left, top-right, bottom-right, bottom-left]
@@ -76,7 +76,7 @@ class Projector(ABC):
         pass
 
     @abstractmethod
-    def geographic_bounds(self) -> List[Geographic]:
+    def geographic_bounds(self) -> list[Geographic]:
         """Return geographic bounding polygon vertices.
 
         Transforms image_bounds corners to geographic coordinates.
@@ -85,7 +85,7 @@ class Projector(ABC):
         pass
 
     @property
-    def source_image_attributes(self) -> Dict[str, Any]:
+    def source_image_attributes(self) -> dict[str, Any]:
         """Get source image attributes."""
         return self._source_image_attrs.copy()
 

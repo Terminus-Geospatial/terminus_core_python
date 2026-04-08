@@ -18,7 +18,7 @@ Unit tests for GCP (Ground Control Point) class
 
 import pytest
 
-from tmns.geo.coord import Geographic, Pixel, UTM
+from tmns.geo.coord import UTM, Geographic, Pixel
 from tmns.geo.proj import GCP
 
 
@@ -232,7 +232,7 @@ class TestGCP:
         )
 
         str_repr = str(gcp)
-        expected = "GCP 8: Test(100.0, 200.0) → Geo(35.000000, -118.000000)"
+        expected = "GCP 8: TestPixel(x=100.0, y=200.0) → GeoGeographic(35.000000, -118.000000)"
         assert str_repr == expected
 
     def test_roundtrip_dict_conversion(self):

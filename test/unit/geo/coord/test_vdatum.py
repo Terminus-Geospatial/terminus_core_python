@@ -16,13 +16,23 @@
 Unit tests for vertical datum functionality.
 """
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import Mock, patch
+
+from tmns.geo.coord.epsg import Code, Manager
+from tmns.geo.coord.geographic import Geographic
+from tmns.geo.coord.vdatum import (
+    EGM96,
+    EGM96_DATUM,
+    ELIPSOIDAL_DATUM,
+    NAVD88,
+    NAVD88_DATUM,
+    Ellipsoidal_Datum,
+)
 
 # Project Libraries
-from tmns.geo.coord.vdatum import Base as VBase, EGM96, NAVD88, Ellipsoidal_Datum, EGM96_DATUM, NAVD88_DATUM, ELIPSOIDAL_DATUM
-from tmns.geo.coord.geographic import Geographic
-from tmns.geo.coord.epsg import Manager, Code
+from tmns.geo.coord.vdatum import Base as VBase
 from tmns.geo.terrain import Elevation_Point
 
 
@@ -362,7 +372,7 @@ class Test_Vertical_Datum_Geoid_Verification:
             (0.0, 0.0, "Equator, Prime Meridian"),
         ]
 
-        for lat, lon, name in test_locations:
+        for lat, lon, _name in test_locations:
             # Test EGM96
             try:
                 coord = Geographic(lat, lon, 1000.0)
@@ -394,7 +404,7 @@ class Test_Vertical_Datum_Geoid_Verification:
 
         h_ortho = 1000.0  # Test height
 
-        for lat, lon, name in test_locations:
+        for lat, lon, _name in test_locations:
             # Test EGM96 roundtrip
             try:
                 coord = Geographic(lat, lon, h_ortho)
@@ -420,7 +430,7 @@ class Test_Vertical_Datum_Geoid_Verification:
     def test_new_coordinate_based_api(self):
         """Test the new coordinate-based API."""
         egm96 = EGM96()
-        navd88 = NAVD88()
+        NAVD88()
 
         # Create test coordinate
         coord = Geographic(40.0, -105.0, 1000.0)

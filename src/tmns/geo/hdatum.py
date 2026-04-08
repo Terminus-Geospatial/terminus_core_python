@@ -20,16 +20,16 @@ geodetic calculations and coordinate transformations.
 """
 
 # Python Standard Libraries
-from dataclasses import dataclass
 import math
-from typing import Union
+from dataclasses import dataclass
 
 # Third-Party Libraries
 import numpy as np
 
+from tmns.geo.coord.ecef import ECEF
+
 # Project Libraries
 from tmns.geo.coord.geographic import Geographic
-from tmns.geo.coord.ecef import ECEF
 from tmns.geo.coord.transformer import Transformer
 
 
@@ -58,7 +58,7 @@ class Base:
         """
         return self.semi_major_axis * (1 - self.flattening)
 
-    def ray_ellipsoid_intersection(self, origin: Union[ECEF, Geographic, np.ndarray],
+    def ray_ellipsoid_intersection(self, origin: ECEF | Geographic | np.ndarray,
                                      direction: np.ndarray) -> Geographic:
         """
         Find intersection of ray with ellipsoid surface using analytical solution.
@@ -145,7 +145,7 @@ class Base:
         transformer = Transformer()
         return transformer.ecef_to_geo(intersection_ecef)
 
-    def check_ray_ellipsoid_intersection(self, origin: Union[ECEF, Geographic, np.ndarray],
+    def check_ray_ellipsoid_intersection(self, origin: ECEF | Geographic | np.ndarray,
                                           direction: np.ndarray) -> bool:
         """
         Check if ray intersects ellipsoid surface without computing the intersection.

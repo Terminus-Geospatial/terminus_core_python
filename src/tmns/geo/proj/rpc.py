@@ -33,8 +33,6 @@ coordinates to improve numerical stability.
 """
 
 # Python Standard Libraries
-import math
-from typing import Dict, List, Tuple
 
 # Third-Party Libraries
 import numpy as np
@@ -49,9 +47,9 @@ class RPC(Projector):
 
     def __init__(self):
         super().__init__()
-        self._coeffs: Dict[str, List[float]] = {}
-        self._offsets: Dict[str, float] = {}
-        self._scales: Dict[str, float] = {}
+        self._coeffs: dict[str, list[float]] = {}
+        self._offsets: dict[str, float] = {}
+        self._scales: dict[str, float] = {}
 
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
         """Transform image pixel coordinates to geographic coordinates using RPC."""
@@ -138,7 +136,7 @@ class RPC(Projector):
             'height_scale': rpc_data.get('height_scale', 1.0),
         }
 
-    def _compute_polynomial(self, x: float, y: float, coeffs: List[float]) -> float:
+    def _compute_polynomial(self, x: float, y: float, coeffs: list[float]) -> float:
         """Compute polynomial value for normalized coordinates using GeoTIFF RPC00B term order.
 
         Standard RPC00B 20-term cubic polynomial (2D simplified version):
@@ -172,7 +170,7 @@ class RPC(Projector):
 
         return result
 
-    def solve_from_gcps(self, gcps: List[Tuple[Pixel, Geographic]]) -> None:
+    def solve_from_gcps(self, gcps: list[tuple[Pixel, Geographic]]) -> None:
         """Fit RPC model to Ground Control Points using least squares.
 
         Solves two separate 9-term polynomial systems:
@@ -260,7 +258,7 @@ class RPC(Projector):
             'lon_scale': lon_scale,
         })
 
-    def _generate_default_coeffs(self) -> List[float]:
+    def _generate_default_coeffs(self) -> list[float]:
         """Generate default coefficients for missing inverse RPC."""
         # Simple identity-like coefficients
         return [0.0] * 20  # 20 coefficients for full RPC polynomial
@@ -273,7 +271,7 @@ class RPC(Projector):
     def is_identity(self) -> bool:
         return False
 
-    def image_bounds(self) -> List[Pixel]:
+    def image_bounds(self) -> list[Pixel]:
         """Return image bounding box as 4 corner pixels.
 
         Derives image dimensions from normalization parameters:
@@ -299,7 +297,7 @@ class RPC(Projector):
             Pixel(x_px=min_x, y_px=max_y),  # Bottom-left
         ]
 
-    def geographic_bounds(self) -> List[Geographic]:
+    def geographic_bounds(self) -> list[Geographic]:
         """Return geographic bounding polygon vertices.
 
         Transforms image_bounds corners to geographic coordinates.

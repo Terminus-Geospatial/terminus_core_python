@@ -16,8 +16,8 @@
 Unit tests for TPS (Thin Plate Spline) projector
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from tmns.geo.coord import Geographic, Pixel
 from tmns.geo.proj import TPS, Transformation_Type

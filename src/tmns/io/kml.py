@@ -84,7 +84,7 @@ class Color_Mode:
         if val == 'random':
             return Color_Mode.RANDOM
 
-        raise Exception('Unknown ColorMode (' + str(mode) + ')')
+        raise ValueError('Unknown ColorMode (' + str(mode) + ')')
 
 
 class Altitude_Mode:
@@ -117,7 +117,7 @@ class Altitude_Mode:
         if val == 'absolute':
             return Altitude_Mode.ABSOLUTE
 
-        raise Exception('Unknown AltitudeMode (' + str(mode) + ')')
+        raise ValueError('Unknown AltitudeMode (' + str(mode) + ')')
 
 class Object:
 

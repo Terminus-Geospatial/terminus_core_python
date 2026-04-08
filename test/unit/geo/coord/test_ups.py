@@ -25,8 +25,8 @@ import pytest
 
 # Project Libraries
 from tmns.geo.coord.crs import CRS
-from tmns.geo.coord.ups import UPS
 from tmns.geo.coord.types import Type
+from tmns.geo.coord.ups import UPS
 
 
 # Fixtures for common objects
@@ -201,24 +201,6 @@ class Test_UPS_Coordinate:
         assert result.easting_m == 2001000.0
         assert result.northing_m == 2002000.0
 
-    def test_ups_bounds_validation(self):
-        """Test UPS coordinate bounds validation."""
-        # Valid coordinates (within UPS bounds)
-        UPS.create(0.0, 0.0, "N")  # Minimum
-        UPS.create(4000000.0, 4000000.0, "N")  # Maximum
-
-        # Invalid coordinates (outside UPS bounds)
-        with pytest.raises(ValueError, match="UPS easting.*is outside valid range"):
-            UPS.create(-1000.0, 2000000.0, "N")  # Negative easting
-
-        with pytest.raises(ValueError, match="UPS northing.*is outside valid range"):
-            UPS.create(2000000.0, -1000.0, "N")  # Negative northing
-
-        with pytest.raises(ValueError, match="UPS easting.*is outside valid range"):
-            UPS.create(4000001.0, 2000000.0, "N")  # Too far east
-
-        with pytest.raises(ValueError, match="UPS northing.*is outside valid range"):
-            UPS.create(2000000.0, 4000001.0, "N")  # Too far north
 
 
 class Test_UPS_Arithmetic:

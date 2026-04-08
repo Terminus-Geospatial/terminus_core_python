@@ -20,11 +20,10 @@ Projector API - Abstract coordinate transformation interface
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any
 
 # Project Libraries
-from tmns.geo.coord import Geographic, Pixel, UTM
-from tmns.geo.terrain import elevation
+from tmns.geo.coord import UTM, Geographic, Pixel
 
 
 class Transformation_Type(Enum):
@@ -39,7 +38,7 @@ class Projector(ABC):
     """Abstract base class for coordinate transformation projectors."""
 
     def __init__(self):
-        self._source_image_attrs: Dict[str, Any] = {}
+        self._source_image_attrs: dict[str, Any] = {}
 
     @abstractmethod
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
@@ -70,7 +69,7 @@ class Projector(ABC):
         pass
 
     @property
-    def source_image_attributes(self) -> Dict[str, Any]:
+    def source_image_attributes(self) -> dict[str, Any]:
         """Get source image attributes."""
         return self._source_image_attrs.copy()
 
@@ -112,8 +111,8 @@ class Affine(Projector):
 
     def __init__(self):
         super().__init__()
-        self._transform_matrix: List[List[float]] | None = None
-        self._inverse_matrix: List[List[float]] | None = None
+        self._transform_matrix: list[list[float]] | None = None
+        self._inverse_matrix: list[list[float]] | None = None
 
     def source_to_geographic(self, pixel: Pixel) -> Geographic:
         """Transform source pixel to geographic using affine matrix."""
@@ -146,12 +145,12 @@ class Affine(Projector):
         return Pixel(x_px=x_new, y_px=y_new)
 
 
-    def update_model(self, transform_matrix: List[List[float]], **kwargs) -> None:
+    def update_model(self, transform_matrix: list[list[float]], **kwargs) -> None:
         """Update the affine transformation matrix."""
         self._transform_matrix = transform_matrix
         self._inverse_matrix = self._compute_inverse_matrix(transform_matrix)
 
-    def _compute_inverse_matrix(self, matrix: List[List[float]]) -> List[List[float]]:
+    def _compute_inverse_matrix(self, matrix: list[list[float]]) -> list[list[float]]:
         """Compute 3x3 affine transformation inverse matrix."""
         # Extract affine components
         a, b, c = matrix[0][0], matrix[0][1], matrix[0][2]

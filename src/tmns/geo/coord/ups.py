@@ -36,19 +36,19 @@ Example:
 """
 
 # Python Standard Libraries
+from __future__ import annotations
+
 import math
 from collections import namedtuple
 from dataclasses import dataclass
-from typing import Union
 
 # Third-Party Libraries
 import numpy as np
 
+from tmns.geo.coord.crs import CRS
+
 # Project Libraries
 from tmns.geo.coord.types import Type
-from tmns.geo.coord.crs import CRS
-from tmns.geo.coord.epsg import Manager
-
 
 # Define bounds as namedtuple for lightweight structure
 UPS_Bounds = namedtuple('UPS_Bounds', ['min_easting', 'min_northing', 'max_easting', 'max_northing'])

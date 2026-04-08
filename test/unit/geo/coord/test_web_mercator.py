@@ -17,15 +17,14 @@ Unit tests for Web Mercator coordinate functionality.
 """
 
 # Python Standard Libraries
-import math
 
 # Third-Party Libraries
-import numpy as np
 import pytest
 
-# Project Libraries
-from tmns.geo.coord.web_mercator import Web_Mercator, Web_Mercator_Bounds
 from tmns.geo.coord.types import Type
+
+# Project Libraries
+from tmns.geo.coord.web_mercator import Web_Mercator
 
 
 # Fixtures for common objects
@@ -130,7 +129,7 @@ class Test_Web_Mercator_API_Integration:
 
     def test_bounds_type(self):
         """Test that world_bounds returns correct type."""
-        bounds = Web_Mercator.world_bounds()
+        Web_Mercator.world_bounds()
 
     def test_coordinate_type(self, web_mercator_coordinate):
         """Test coordinate type identification."""

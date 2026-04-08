@@ -18,10 +18,9 @@ Ground Control Point (GCP) data structure
 
 # Python Standard Libraries
 from dataclasses import dataclass
-from typing import Dict
 
 # Project Libraries
-from tmns.geo.coord import Geographic, Pixel, UTM
+from tmns.geo.coord import UTM, Geographic, Pixel
 
 
 @dataclass

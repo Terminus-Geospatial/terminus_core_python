@@ -36,10 +36,19 @@ Example:
 """
 
 # Python Standard Libraries
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 # Project Libraries
-from tmns.geo.coord import Transformer, Geographic, Coordinate, Type, UTM, UPS, Web_Mercator, ECEF
+from tmns.geo.coord import (
+    ECEF,
+    UPS,
+    UTM,
+    Geographic,
+    Transformer,
+    Web_Mercator,
+)
 from tmns.geo.coord.vdatum import Base as VBase
 
 
@@ -262,7 +271,7 @@ class Elevation_Point:
                 vertical_datum=target_datum
             )
         except Exception as e:
-            raise ValueError(f"Failed to convert to datum {target_datum}: {e}")
+            raise ValueError(f"Failed to convert to datum {target_datum}: {e}") from e
 
     # ============================================================================
     # COMPARISON AND STRING METHODS

@@ -20,12 +20,13 @@ Provides coordinate transformations between different local coordinate systems
 """
 
 import math
-from typing import Union
+
 import numpy as np
+
+from tmns.geo.coord.ecef import ECEF
 
 # Project Libraries
 from tmns.geo.coord.geographic import Geographic
-from tmns.geo.coord.ecef import ECEF
 from tmns.geo.coord.transformer import Transformer
 
 
@@ -152,7 +153,7 @@ class Local_Tangent_Plane:
         return Local_Tangent_Plane.enu_to_ecef_matrix(reference_geo, dims).T
 
     @staticmethod
-    def ecef_to_ned(ecef_point: Union[ECEF, np.ndarray, list],
+    def ecef_to_ned(ecef_point: ECEF | np.ndarray | list,
                     reference_geo: Geographic) -> np.ndarray:
         """
         Convert ECEF coordinates to NED.
@@ -182,7 +183,7 @@ class Local_Tangent_Plane:
         return ned_array
 
     @staticmethod
-    def ned_to_ecef(ned_point: Union[np.ndarray, list],
+    def ned_to_ecef(ned_point: np.ndarray | list,
                     reference_geo: Geographic) -> ECEF:
         """
         Convert NED coordinates to ECEF.
@@ -209,7 +210,7 @@ class Local_Tangent_Plane:
         return ECEF.create(ecef_array[0], ecef_array[1], ecef_array[2])
 
     @staticmethod
-    def enu_to_ned(enu_point: Union[np.ndarray, list]) -> np.ndarray:
+    def enu_to_ned(enu_point: np.ndarray | list) -> np.ndarray:
         """
         Convert ENU coordinates to NED.
 
@@ -225,7 +226,7 @@ class Local_Tangent_Plane:
         return ned_array
 
     @staticmethod
-    def ned_to_enu(ned_point: Union[np.ndarray, list]) -> np.ndarray:
+    def ned_to_enu(ned_point: np.ndarray | list) -> np.ndarray:
         """
         Convert NED coordinates to ENU.
 
@@ -241,7 +242,7 @@ class Local_Tangent_Plane:
         return enu_array
 
     @staticmethod
-    def ecef_to_enu(ecef_point: Union[ECEF, np.ndarray, list],
+    def ecef_to_enu(ecef_point: ECEF | np.ndarray | list,
                     reference_geo: Geographic) -> np.ndarray:
         """
         Convert ECEF coordinates to ENU.
@@ -259,7 +260,7 @@ class Local_Tangent_Plane:
         return enu_array
 
     @staticmethod
-    def enu_to_ecef(enu_point: Union[np.ndarray, list],
+    def enu_to_ecef(enu_point: np.ndarray | list,
                     reference_geo: Geographic) -> ECEF:
         """
         Convert ENU coordinates to ECEF.
@@ -293,7 +294,7 @@ class Local_Tangent_Plane:
         return Local_Tangent_Plane.ecef_to_enu(ecef_point, reference_geo)
 
     @staticmethod
-    def enu_to_geographic(enu_point: Union[np.ndarray, list],
+    def enu_to_geographic(enu_point: np.ndarray | list,
                           reference_geo: Geographic) -> Geographic:
         """
         Convert ENU coordinates to geographic.

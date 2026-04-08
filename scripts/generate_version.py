@@ -22,7 +22,7 @@ containing version, build date, and git commit hash.
 # Python Standard Libraries
 import logging
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Setup logging
@@ -47,7 +47,7 @@ def get_git_hash() -> str:
 
 def get_build_date() -> str:
     """Get the current build date in ISO format."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def generate_version_file():

@@ -17,25 +17,24 @@ Coordinate transformation utilities.
 """
 
 # Python Standard Libraries
-from typing import Union
 
 # Third-Party Libraries
 import pyproj
-from pyproj import CRS
+
+from tmns.geo.coord.crs import CRS
+from tmns.geo.coord.ecef import ECEF
+from tmns.geo.coord.epsg import Code, Manager
+from tmns.geo.coord.geographic import Geographic
+from tmns.geo.coord.pixel import Pixel
 
 # Project Libraries
 from tmns.geo.coord.types import Type
-from tmns.geo.coord.epsg import Manager, Code
-from tmns.geo.coord.crs import CRS
-from tmns.geo.coord.geographic import Geographic
-from tmns.geo.coord.utm import UTM
 from tmns.geo.coord.ups import UPS
+from tmns.geo.coord.utm import UTM
 from tmns.geo.coord.web_mercator import Web_Mercator
-from tmns.geo.coord.ecef import ECEF
-from tmns.geo.coord.pixel import Pixel
 
 # Union type for any coordinate type
-Coordinate = Union[Geographic, UTM, UPS, Web_Mercator, ECEF, Pixel]
+Coordinate = Geographic | UTM | UPS | Web_Mercator | ECEF | Pixel
 
 
 class Transformer:
@@ -70,7 +69,7 @@ class Transformer:
                     pyproj.CRS(from_epsg), pyproj.CRS(to_epsg), always_xy=True
                 )
             except Exception as e:
-                raise ValueError(f"Cannot create transformer from {from_crs} to {to_crs}: {e}")
+                raise ValueError(f"Cannot create transformer from {from_crs} to {to_crs}: {e}") from e
 
         return self._transformers[key]
 
@@ -130,7 +129,7 @@ class Transformer:
         lon, lat, alt = transformer.transform(ecef.x_m, ecef.y_m, ecef.z_m)
         return Geographic.create(lat, lon, alt)
 
-    def transform(self, coord: Coordinate, target_crs: Union[str, CRS]) -> Coordinate:
+    def transform(self, coord: Coordinate, target_crs: str | CRS) -> Coordinate:
         """Transform coordinate to target CRS.
 
         Args:
