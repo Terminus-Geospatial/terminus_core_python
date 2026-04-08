@@ -31,10 +31,11 @@ from tmns.geo.coord import (
     Web_Mercator,
     ECEF,
     Transformer,
+    Type,
 )
 
 
-class Test_Coordinate_Type_Comparisons:
+class Test_Type_Comparisons:
     """Integration tests comparing bearing and distance across coordinate types."""
 
     @pytest.fixture

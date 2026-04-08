@@ -28,11 +28,12 @@ from unittest.mock import patch, Mock
 import pytest
 
 # Project Libraries
-from tmns.geo.coord import Geographic, UTM, UPS, Web_Mercator, ECEF, Transformer, Coordinate_Type
+from tmns.geo.coord import Geographic, UTM, UPS, Web_Mercator, ECEF, Transformer, Type
+from tmns.geo.coord.vdatum import ELIPSOIDAL_DATUM
 from tmns.geo.terrain import (
     Manager,
-    Terrain_Catalog,
-    GeoTIFF_Elevation_Source,
+    Catalog,
+    GeoTIFF,
     Elevation_Point,
     elevation,
     elevation_point
@@ -68,8 +69,9 @@ class Test_Terrain_Integration:
     @pytest.fixture
     def mock_catalog(self):
         """Mock terrain catalog with test data."""
-        catalog = Mock(spec=Terrain_Catalog)
+        catalog = Mock(spec=Catalog)
         catalog.name = "Mock Terrain Catalog"
+        catalog.vertical_datum = ELIPSOIDAL_DATUM
 
         # Mock elevation responses for test locations
         mock_elevations = {
@@ -93,23 +95,23 @@ class Test_Terrain_Integration:
             transformer = Transformer()
 
             # Convert coordinate to geographic for comparison
-            if coord.type() == Coordinate_Type.GEOGRAPHIC:
+            if coord.type() == Type.GEOGRAPHIC:
                 # Already a geographic coordinate
                 lat = coord.latitude_deg
                 lon = coord.longitude_deg
-            elif coord.type() == Coordinate_Type.UTM:
+            elif coord.type() == Type.UTM:
                 geo_coord = transformer.utm_to_geo(coord)
                 lat = geo_coord.latitude_deg
                 lon = geo_coord.longitude_deg
-            elif coord.type() == Coordinate_Type.WEB_MERCATOR:
+            elif coord.type() == Type.WEB_MERCATOR:
                 geo_coord = transformer.web_mercator_to_geo(coord)
                 lat = geo_coord.latitude_deg
                 lon = geo_coord.longitude_deg
-            elif coord.type() == Coordinate_Type.UPS:
+            elif coord.type() == Type.UPS:
                 geo_coord = transformer.ups_to_geo(coord)
                 lat = geo_coord.latitude_deg
                 lon = geo_coord.longitude_deg
-            elif coord.type() == Coordinate_Type.ECEF:
+            elif coord.type() == Type.ECEF:
                 geo_coord = transformer.ecef_to_geo(coord)
                 lat = geo_coord.latitude_deg
                 lon = geo_coord.longitude_deg
@@ -136,8 +138,7 @@ class Test_Terrain_Integration:
                 elevations.append(elevation)
             return elevations
 
-        catalog.get_elevation.side_effect = mock_get_elevation
-        catalog.get_elevations.side_effect = mock_get_elevations
+        catalog.elevation_meters.side_effect = mock_get_elevation
         return catalog
 
     @pytest.fixture
@@ -194,7 +195,11 @@ class Test_Terrain_Integration:
             TEST_LOCATIONS["las_vegas"]
         ]
 
-        elevations = terrain_manager.elevation_batch(coords)
+        # elevation_batch was removed, test individual queries instead
+        elevations = []
+        for coord in coords:
+            elevation = terrain_manager.elevation(coord)
+            elevations.append(elevation)
 
         assert len(elevations) == 3
         assert elevations[0] == -86.0   # Death Valley
@@ -245,7 +250,11 @@ class Test_Terrain_Integration:
         wm_coord = transformer.geo_to_web_mercator(geo_coord)
 
         coords = [geo_coord, utm_coord, wm_coord]
-        elevations = terrain_manager.elevation_batch(coords)
+        # elevation_batch was removed, test individual queries instead
+        elevations = []
+        for coord in coords:
+            elevation = terrain_manager.elevation(coord)
+            elevations.append(elevation)
 
         assert len(elevations) == 3
         assert all(e == 650.0 for e in elevations)
@@ -264,11 +273,11 @@ class Test_Terrain_Integration:
         elevation2 = manager.elevation(coord)
 
         assert elevation1 == elevation2
-        assert mock_catalog.get_elevation.call_count == 1  # Only called once
+        assert mock_catalog.elevation_meters.call_count == 1  # Only called once
 
     def test_convenience_functions(self, mock_catalog):
         """Test global convenience functions."""
-        with patch('tmns.geo.terrain.get_terrain_manager') as mock_get_manager:
+        with patch('tmns.geo.terrain.Manager.global_instance') as mock_get_manager:
             mock_get_manager.return_value = Manager([mock_catalog], cache_enabled=False)
 
             coord = TEST_LOCATIONS["mountain_whitney"]
@@ -284,22 +293,24 @@ class Test_Terrain_Integration:
 
     def test_error_handling(self):
         """Test error handling for invalid scenarios."""
-        # Manager with no sources
-        with pytest.raises(ValueError):
-            Manager([])
+        # Manager with no sources (now allowed)
+        manager = Manager([])
+        assert len(manager.sources) == 0
 
     def test_source_priority(self):
         """Test that sources are queried in priority order."""
         # Create mock sources with different priorities
-        source1 = Mock(spec=GeoTIFF_Elevation_Source)
+        source1 = Mock(spec=GeoTIFF)
         source1.name = "High Priority Source"
-        source1.get_elevation.return_value = 1000.0
+        source1.elevation_meters.return_value = 1000.0
         source1.contains.return_value = True
+        source1.vertical_datum = ELIPSOIDAL_DATUM
 
-        source2 = Mock(spec=GeoTIFF_Elevation_Source)
+        source2 = Mock(spec=GeoTIFF)
         source2.name = "Low Priority Source"
-        source2.get_elevation.return_value = 2000.0
+        source2.elevation_meters.return_value = 2000.0
         source2.contains.return_value = True
+        source2.vertical_datum = ELIPSOIDAL_DATUM
 
         # Manager with sources (first source has priority)
         manager = Manager([source1, source2], cache_enabled=False)
@@ -309,8 +320,8 @@ class Test_Terrain_Integration:
 
         # Should use first source's value
         assert elevation == 1000.0
-        source1.get_elevation.assert_called_once()
-        source2.get_elevation.assert_not_called()
+        source1.elevation_meters.assert_called_once()
+        source2.elevation_meters.assert_not_called()
 
     def test_coordinate_transformation_integration(self, terrain_manager):
         """Test integration between terrain and coordinate transformations."""
@@ -345,12 +356,15 @@ class Test_Terrain_Integration:
         assert elevation is not None
         assert single_query_time < 1.0  # Should be fast
 
-        # Test batch query performance
+        # Test individual query performance (elevation_batch was removed)
         coords = [coord] * 100
         start_time = time.time()
-        elevations = terrain_manager.elevation_batch(coords)
-        batch_query_time = time.time() - start_time
+        elevations = []
+        for coord in coords:
+            elevation = terrain_manager.elevation(coord)
+            elevations.append(elevation)
+        individual_query_time = time.time() - start_time
 
         assert len(elevations) == 100
         assert all(e == 650.0 for e in elevations)
-        assert batch_query_time < 2.0  # Should be reasonably fast
+        assert individual_query_time < 2.0  # Should be reasonably fast

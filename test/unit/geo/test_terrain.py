@@ -32,16 +32,14 @@ from tmns.geo.coord import Geographic, UTM, UPS, Web_Mercator, ECEF, Pixel, Tran
 from tmns.geo.terrain import (
     Manager,
     Elevation_Point,
-    GeoTIFF_Elevation_Source,
-    Terrain_Catalog,
-    Local_DEM_Elevation_Source,
+    GeoTIFF,
+    Catalog,
+    Flat,
     elevation,
     elevation_point,
-    get_terrain_manager,
-    create_catalog_manager,
-    create_terrain_manager,
     Interpolation_Method
 )
+from tmns.geo.coord.vdatum import ELIPSOIDAL_DATUM
 
 
 # Fixtures
@@ -60,20 +58,20 @@ def sample_elevation_point(sample_geographic_coord):
 @pytest.fixture
 def mock_geotiff_source():
     """Mock GeoTIFF elevation source."""
-    source = Mock(spec=GeoTIFF_Elevation_Source)
+    source = Mock(spec=GeoTIFF)
     source.name = "GeoTIFF (test.tif)"
-    source.get_elevation.return_value = 100.5
-    source.get_elevations.return_value = [100.5, 100.5, 100.5]  # Return same value for all 3 coordinates
+    source.elevation_meters.return_value = 100.5
     source.contains.return_value = True
+    source.vertical_datum = ELIPSOIDAL_DATUM
     return source
 
 
 @pytest.fixture
 def mock_catalog():
     """Mock terrain catalog."""
-    catalog = Mock(spec=Terrain_Catalog)
+    catalog = Mock(spec=Catalog)
     catalog.name = "Terrain Catalog"
-    catalog.get_elevation.return_value = 100.5
+    catalog.elevation_meters.return_value = 100.5
     catalog.sources = [mock_geotiff_source()]
     return catalog
 
@@ -116,15 +114,9 @@ class Test_Elevation_Point:
         """Test coordinate conversion methods."""
         point = sample_elevation_point
 
-        # Test coordinate method returns the same geographic coordinate
-        coord = point.coordinate()
-        assert isinstance(coord, Geographic)
-        assert coord == point.coord
-
-        # Test geographic method returns the same geographic coordinate
-        geo = point.geographic()
-        assert isinstance(geo, Geographic)
-        assert geo == point.coord
+        # Test coord property returns the same geographic coordinate
+        assert isinstance(point.coord, Geographic)
+        assert point.coord.altitude_m == 10.5  # From the fixture
 
     def test_coordinate_transformations(self, sample_elevation_point):
         """Test coordinate transformation methods."""
@@ -177,160 +169,61 @@ class Test_Elevation_Point:
             Elevation_Point(Pixel(100, 200), "Test Source")
 
 
-class Test_Local_DEM_Elevation_Source:
-    """Test Local_DEM_Elevation_Source class."""
-
-    def test_local_dem_creation(self):
-        """Test creating local DEM source."""
-        # Create source normally (it will try to load a real file)
-        with patch('tmns.geo.terrain.rasterio.open') as mock_rasterio_open:
-            # Mock rasterio dataset
-            mock_dataset = Mock()
-            mock_dataset.bounds = BoundingBox(left=0, right=1000, bottom=0, top=1000)
-            mock_dataset.transform = (0.0, 10.0, 0.0, 1000.0, 0.0, -10.0)
-            mock_dataset.crs = Mock()
-            mock_dataset.crs.to_epsg.return_value = 4326
-            mock_dataset.width = 100
-            mock_dataset.height = 100
-            mock_rasterio_open.return_value = mock_dataset
-
-            source = Local_DEM_Elevation_Source("test.tif")
-
-            assert source.name == "Local DEM (test.tif)"
-            assert source.dataset is mock_dataset
-            assert source.epsg_code == 4326
-
-    @patch('tmns.geo.terrain.rasterio.open')
-    def test_local_dem_file_not_found(self, mock_rasterio_open):
-        """Test handling of missing DEM file."""
-        mock_rasterio_open.side_effect = FileNotFoundError("File not found")
-
-        with pytest.raises(RuntimeError):
-            Local_DEM_Elevation_Source("nonexistent.tif")
-
-    def test_get_elevation(self):
-        """Test getting elevation from local DEM."""
-        # Create source with mocked dataset
-        with patch('tmns.geo.terrain.rasterio.open') as mock_rasterio_open:
-            # Mock rasterio dataset
-            mock_dataset = Mock()
-            mock_dataset.bounds = BoundingBox(left=0, right=1000, bottom=0, top=1000)
-            # Correct transform order: [origin_x, scale_x, shear_x, origin_y, shear_y, scale_y]
-            mock_dataset.transform = (0.0, 10.0, 0.0, 1000.0, 0.0, -10.0)  # 10m pixels, origin at top-left
-            mock_dataset.crs = Mock()
-            mock_dataset.crs.to_epsg.return_value = 4326
-            mock_dataset.read.return_value = np.array([[100.5]])
-            mock_dataset.nodata = None
-            mock_dataset.sample.return_value = np.array([[100.5]])
-            mock_dataset.width = 100
-            mock_dataset.height = 100
-            mock_rasterio_open.return_value = mock_dataset
-
-            source = Local_DEM_Elevation_Source("test.tif")
-
-            # Test elevation query with coordinates within bounds
-            # Using pixel coordinates (50, 50) -> world coordinates (500, 500)
-            elevation = source.get_elevation(500.0, 500.0)
-            assert elevation == 100.5
-
-    @patch('rasterio.open')
-    def test_get_elevation_out_of_bounds(self, mock_rasterio_open):
-        """Test getting elevation for out-of-bounds coordinate."""
-        # Mock rasterio dataset
-        mock_dataset = Mock()
-        mock_dataset.bounds = Mock(left=0, right=1000, bottom=0, top=1000)
-        mock_dataset.transform = Affine.identity()
-        mock_dataset.crs = Mock()
-        mock_dataset.crs.to_epsg.return_value = 4326
-        mock_rasterio_open.return_value.__enter__.return_value = mock_dataset
-
-        source = Local_DEM_Elevation_Source("test.tif")
-
-        # Test out-of-bounds coordinate (assuming transform maps to far away)
-        elevation = source.get_elevation(90.0, 180.0)
-        assert elevation is None
 
 
-class Test_GeoTIFF_Elevation_Source:
-    """Test GeoTIFF_Elevation_Source class."""
+class Test_GeoTIFF:
+    """Test GeoTIFF class."""
 
     def test_geotiff_creation(self):
         """Test creating GeoTIFF source."""
-        # Create source normally (no mocking needed for basic creation)
-        source = GeoTIFF_Elevation_Source("test.tif")
+        # Use real test dataset
+        source = GeoTIFF("test/data/terrain/test_dem.tif")
 
-        # Manually set up mock dataset with Affine transform
-        mock_dataset = Mock()
-        mock_dataset.bounds = BoundingBox(left=-74.1, right=-73.9, bottom=40.6, top=40.8)
-        mock_dataset.transform = Affine(0.001, 0.0, -74.1, 0.0, -0.001, 40.8)
-        mock_dataset.crs = Mock()
-        mock_dataset.crs.to_epsg.return_value = 4326
-        source.dataset = mock_dataset
-        source.bounds = mock_dataset.bounds
-        source.transform = mock_dataset.transform
-        source.crs = mock_dataset.crs
-        source.epsg_code = 4326
-        source._loaded = True
+        # Trigger dataset loading to get epsg_code
+        source._load_dataset()
 
-        assert source.name == "GeoTIFF (test.tif)"
-        assert source.dataset is mock_dataset
+        # Test basic properties
+        assert source.name == "GeoTIFF (test_dem.tif)"
+        assert source.file_path.name == "test_dem.tif"
         assert source.epsg_code == 4326
+        assert source.bounds is not None
+
+        # Test info method
+        info = source.info()
+        assert 'file_path' in info
+        assert 'epsg_code' in info
+        assert 'bounds' in info
+        assert info['epsg_code'] == 4326
 
     def test_contains_coordinate(self):
         """Test coordinate containment check."""
-        # Create source normally
-        source = GeoTIFF_Elevation_Source("test.tif")
+        # Use real test dataset
+        source = GeoTIFF("test/data/terrain/test_dem.tif")
 
-        # Manually set up mock dataset with Affine transform
-        mock_dataset = Mock()
-        mock_dataset.bounds = BoundingBox(left=-74.1, right=-73.9, bottom=40.6, top=40.8)
-        mock_dataset.transform = Affine(0.001, 0.0, -74.1, 0.0, -0.001, 40.8)
-        mock_dataset.crs = Mock()
-        mock_dataset.crs.to_epsg.return_value = 4326
-        source.dataset = mock_dataset
-        source.bounds = mock_dataset.bounds
-        source.transform = mock_dataset.transform
-        source.crs = mock_dataset.crs
-        source.epsg_code = 4326
-        source._loaded = True
-
-        # Test coordinate inside bounds
+        # Test coordinate inside bounds (NYC area)
         coord_inside = Geographic(40.7, -74.0)
         assert source.contains(coord_inside) == True
 
-        # Test coordinate outside bounds
+        # Test coordinate outside bounds (far away)
         coord_outside = Geographic(0.0, 0.0)
         assert source.contains(coord_outside) == False
 
-    def test_get_elevation(self):
+    def test_elevation_meters(self):
         """Test getting elevation from GeoTIFF."""
-        # Create source normally
-        source = GeoTIFF_Elevation_Source("test.tif")
-
-        # Manually set up mock dataset with Affine transform
-        mock_dataset = Mock()
-        mock_dataset.bounds = BoundingBox(left=-74.1, right=-73.9, bottom=40.6, top=40.8)
-        mock_dataset.transform = Affine(0.001, 0.0, -74.1, 0.0, -0.001, 40.8)
-        mock_dataset.crs = Mock()
-        mock_dataset.crs.to_epsg.return_value = 4326
-        mock_dataset.read.return_value = np.array([[100.5]])
-        mock_dataset.nodata = None
-        mock_dataset.sample.return_value = np.array([[100.5]])
-        source.dataset = mock_dataset
-        source.bounds = mock_dataset.bounds
-        source.transform = mock_dataset.transform
-        source.crs = mock_dataset.crs
-        source.epsg_code = 4326
-        source._loaded = True
+        # Use real test dataset
+        source = GeoTIFF("test/data/terrain/test_dem.tif")
 
         # Test elevation query
         coord = Geographic(40.7, -74.0)
-        elevation = source.get_elevation(coord)
-        assert elevation == 100.5
+        elevation = source.elevation_meters(coord)
+
+        # Should get a reasonable elevation value (100-120m range from our test data)
+        assert elevation is not None
+        assert 100 <= elevation <= 120
 
     def test_interpolation_methods(self):
         """Test interpolation method settings."""
-        source = GeoTIFF_Elevation_Source("dummy.tif")
+        source = GeoTIFF("test/data/terrain/test_dem.tif")
 
         # Test default interpolation
         assert source.interpolation == Interpolation_Method.BILINEAR
@@ -340,8 +233,8 @@ class Test_GeoTIFF_Elevation_Source:
         assert source.interpolation == Interpolation_Method.NEAREST
 
 
-class Test_Terrain_Catalog:
-    """Test Terrain_Catalog class."""
+class Test_Catalog:
+    """Test Catalog class."""
 
     @patch('pathlib.Path.exists')
     @patch('pathlib.Path.rglob')
@@ -350,8 +243,8 @@ class Test_Terrain_Catalog:
         mock_exists.return_value = True
         mock_rglob.return_value = [Path("file1.tif"), Path("file2.tif")]
 
-        with patch('tmns.geo.terrain.GeoTIFF_Elevation_Source') as mock_geotiff:
-            catalog = Terrain_Catalog("/test/catalog")
+        with patch('tmns.geo.terrain.catalog.GeoTIFF') as mock_geotiff:
+            catalog = Catalog("/test/catalog")
 
             # Should attempt to create sources for found files
             assert mock_geotiff.call_count == 2
@@ -362,24 +255,24 @@ class Test_Terrain_Catalog:
         """Test handling of missing catalog directory."""
         mock_exists.return_value = False
 
-        catalog = Terrain_Catalog("/nonexistent/catalog")
+        catalog = Catalog("/nonexistent/catalog")
         assert len(catalog.sources) == 0
 
-    def test_get_elevation_from_sources(self, mock_geotiff_source):
+    def test_elevation_meters_from_sources(self, mock_geotiff_source):
         """Test getting elevation from catalog sources."""
-        catalog = Terrain_Catalog.__new__(Terrain_Catalog)  # Create without init
+        catalog = Catalog.__new__(Catalog)  # Create without init
         catalog.sources = [mock_geotiff_source]
         catalog.catalog_root = Path("/test")
 
         coord = Geographic(40.7, -74.0)
-        elevation = catalog.get_elevation(coord)
+        elevation = catalog.elevation_meters(coord)
 
         assert elevation == 100.5
-        mock_geotiff_source.get_elevation.assert_called_once_with(coord)
+        mock_geotiff_source.elevation_meters.assert_called_once_with(coord, None)
 
     def test_get_sources_for_coordinate(self, mock_geotiff_source):
         """Test getting sources that contain a coordinate."""
-        catalog = Terrain_Catalog.__new__(Terrain_Catalog)  # Create without init
+        catalog = Catalog.__new__(Catalog)  # Create without init
         catalog.sources = [mock_geotiff_source]
         catalog.catalog_root = Path("/test")
 
@@ -405,10 +298,11 @@ class Test_Terrain_Manager:
 
     def test_manager_creation_no_sources(self):
         """Test that manager requires at least one source."""
-        with pytest.raises(ValueError):
-            Manager([])
+        # Manager should now accept empty sources list
+        manager = Manager([])
+        assert len(manager.sources) == 0
 
-    def test_get_elevation(self, manager_with_mock_sources, sample_geographic_coord):
+    def test_elevation_meters(self, manager_with_mock_sources, sample_geographic_coord):
         """Test getting elevation from manager."""
         manager = manager_with_mock_sources
         coord = sample_geographic_coord
@@ -416,7 +310,7 @@ class Test_Terrain_Manager:
         elevation = manager.elevation(coord)
         assert elevation == 100.5
 
-    def test_get_elevation_point(self, manager_with_mock_sources, sample_geographic_coord):
+    def test_elevation_point(self, manager_with_mock_sources, sample_geographic_coord):
         """Test getting elevation point from manager."""
         manager = manager_with_mock_sources
         coord = sample_geographic_coord
@@ -428,9 +322,9 @@ class Test_Terrain_Manager:
         assert point.source == "GeoTIFF (test.tif)"
         assert point.coord.altitude_m == 100.5  # Should be updated by elevation source
 
-    def test_get_elevation_no_data(self, mock_geotiff_source):
+    def test_elevation_meters_no_data(self, mock_geotiff_source):
         """Test handling when no elevation data is available."""
-        mock_geotiff_source.get_elevation.return_value = None
+        mock_geotiff_source.elevation_meters.return_value = None
 
         manager = Manager([mock_geotiff_source], cache_enabled=False)
         coord = Geographic(40.7, -74.0)
@@ -438,16 +332,16 @@ class Test_Terrain_Manager:
         elevation = manager.elevation(coord)
         assert elevation is None
 
-    def test_elevation_batch(self, manager_with_mock_sources, sample_coordinates_list):
-        """Test batch elevation queries."""
+    def test_elevation_batch_removed(self, manager_with_mock_sources):
+        """Test that elevation_batch method has been removed."""
         manager = manager_with_mock_sources
-        coords = sample_coordinates_list
 
-        elevations = manager.elevation_batch(coords)
+        # Verify elevation_batch method doesn't exist
+        assert not hasattr(manager, 'elevation_batch')
 
-        assert len(elevations) == 3
-        # All elevations should be 100.5 since mock returns same value for each coordinate
-        assert all(e == 100.5 for e in elevations)
+        # Verify that trying to access elevation_batch raises AttributeError
+        with pytest.raises(AttributeError):
+            manager.elevation_batch
 
     def test_coordinate_conversion_in_elevation(self, manager_with_mock_sources):
         """Test that coordinates are properly converted for elevation queries."""
@@ -471,10 +365,10 @@ class Test_Terrain_Manager:
         assert elevation == 100.5
 
         # Test cache hit (should not call source again)
-        mock_geotiff_source.get_elevation.reset_mock()
+        mock_geotiff_source.elevation_meters.reset_mock()
         elevation = manager.elevation(coord)
         assert elevation == 100.5
-        mock_geotiff_source.get_elevation.assert_not_called()
+        mock_geotiff_source.elevation_meters.assert_not_called()
 
     def test_clear_cache(self, mock_geotiff_source, sample_geographic_coord):
         """Test clearing cache."""
@@ -488,9 +382,9 @@ class Test_Terrain_Manager:
         manager.clear_cache()
 
         # Verify cache is cleared by checking source gets called again
-        mock_geotiff_source.get_elevation.reset_mock()
+        mock_geotiff_source.elevation_meters.reset_mock()
         manager.elevation(coord)
-        mock_geotiff_source.get_elevation.assert_called_once()
+        mock_geotiff_source.elevation_meters.assert_called_once()
 
     def test_get_cache_stats(self, mock_geotiff_source, sample_geographic_coord):
         """Test getting cache statistics."""
@@ -533,70 +427,33 @@ class Test_Terrain_Manager:
 class Test_Convenience_Functions:
     """Test convenience functions."""
 
-    @patch('tmns.geo.terrain.Manager')
-    def test_get_terrain_manager(self, mock_manager_class):
-        """Test getting global terrain manager."""
-        mock_manager = Mock()
-        mock_manager_class.create_default.return_value = mock_manager
-
-        # Reset global variable
-        import tmns.geo.terrain
-        tmns.geo.terrain._terrain_manager = None
-
-        manager = get_terrain_manager()
-
-        assert manager == mock_manager
-        mock_manager_class.create_default.assert_called_once()
-
-    @patch('tmns.geo.terrain.Manager')
-    def test_create_terrain_manager(self, mock_manager_class):
-        """Test creating terrain manager with sources."""
-        mock_source = Mock()
-        mock_manager = Mock()
-        mock_manager_class.return_value = mock_manager
-
-        manager = create_terrain_manager([mock_source], cache_enabled=True)
-
-        assert manager == mock_manager
-        mock_manager_class.assert_called_once_with([mock_source], True, Interpolation_Method.BILINEAR)
-
-    @patch('tmns.geo.terrain.Manager')
-    def test_create_catalog_manager(self, mock_manager_class):
-        """Test creating catalog manager."""
-        mock_manager = Mock()
-        mock_manager_class.create_catalog_only.return_value = mock_manager
-
-        manager = create_catalog_manager("/test/catalog", cache_enabled=True)
-
-        assert manager is mock_manager
-        mock_manager_class.create_catalog_only.assert_called_once_with("/test/catalog", True, Interpolation_Method.BILINEAR)
-
-    @patch('tmns.geo.terrain.get_terrain_manager')
+    @patch('tmns.geo.terrain.Manager.global_instance')
     def test_elevation_function(self, mock_get_manager):
         """Test elevation convenience function."""
         mock_manager = Mock()
         mock_manager.elevation.return_value = 100.5
         mock_get_manager.return_value = mock_manager
 
-        coord = Geographic(40.7, -74.0)
+        coord = Geographic(40.7, -74.0, 0.0)
         result = elevation(coord)
 
         assert result == 100.5
-        mock_manager.elevation.assert_called_once_with(coord)
+        mock_manager.elevation.assert_called_once_with(coord, None)
 
-    @patch('tmns.geo.terrain.get_terrain_manager')
+    @patch('tmns.geo.terrain.Manager.global_instance')
     def test_elevation_point_function(self, mock_get_manager):
         """Test elevation point convenience function."""
         mock_manager = Mock()
-        mock_point = Mock()
-        mock_manager.elevation_point.return_value = mock_point
+        mock_elevation_point = Mock()
+        mock_elevation_point.coord.altitude_m = 100.5
+        mock_manager.elevation_point.return_value = mock_elevation_point
         mock_get_manager.return_value = mock_manager
 
-        coord = Geographic(40.7, -74.0)
+        coord = Geographic(40.7, -74.0, 0.0)
         result = elevation_point(coord)
 
-        assert result == mock_point
-        mock_manager.elevation_point.assert_called_once_with(coord)
+        assert result.coord.altitude_m == 100.5
+        mock_manager.elevation_point.assert_called_once_with(coord, None)
 
 
 class Test_Interpolation_Method:

@@ -256,17 +256,6 @@ The following components need comprehensive unit test coverage:
   - [ ] Multi-source coordination
   - [ ] File system operations
 
-#### Integration Tests
-- [ ] Cross-module integration tests
-- [ ] Performance benchmarks
-- [ ] Real-world data validation
-- [ ] Error recovery scenarios
-
-### Test Data Requirements
-- [ ] Sample GeoTIFF files for testing
-- [ ] Known elevation data for validation
-- [ ] Test coordinate sets covering different regions
-- [ ] Mock data for edge cases
 
 ### Geographic Class Enhancements
 - [ ] **Vincenty Formula Implementation** (`src/tmns/geo/coord/geographic.py`)
@@ -274,6 +263,9 @@ The following components need comprehensive unit test coverage:
   - [ ] Vincenty formula implementation for accurate distance calculations
   - [ ] Compare Vincenty vs Haversine accuracy for different use cases
   - [ ] Performance optimization for batch calculations
+
+### Performance Optimizations
+- [ ] **Vectorized Batch Transformations** (`src/tmns/geo/coord/transformer.py`)
 
 ## Support
 

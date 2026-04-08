@@ -19,28 +19,23 @@ This package provides coordinate types, transformations, and utilities
 for various geospatial coordinate systems used in Terminus applications.
 """
 
-# Python Standard Libraries
-import logging
-
-# Configure logging
-logging.getLogger(__name__).addHandler(logging.NullHandler())
-
 # Export coordinate components
 from tmns.geo.coord import (
     Coordinate,
-    Coordinate_Type,
+    Type,
     Geographic,
     UTM,
     UPS,
     Web_Mercator,
     ECEF,
     Pixel,
-    EPSG_Manager,
+    Manager,
     Transformer,
 )
 
 # Export datum components
-from tmns.geo.datum import Datum, WGS84
+from tmns.geo.hdatum import Base as HBase, WGS84
+from tmns.geo.coord.vdatum import Base as VBase, EGM96, NAVD88, Ellipsoidal_Datum
 
 # Export LTP components
 from tmns.geo.ltp import Local_Tangent_Plane
@@ -51,32 +46,37 @@ from tmns.geo.proj import Projector, Identity, Affine, RPC, TPS, GCP, Transforma
 # Export terrain components
 from tmns.geo.terrain import (
     Elevation_Point,
-    Elevation_Source,
-    Interpolation_Method,
+    Base as Terrain_Base,
+    GeoTIFF,
+    Flat,
+    Catalog,
     Manager as Terrain_Manager,
+    Interpolation_Method,
     elevation,
     elevation_point,
 )
 
 # Export all components
 __all__ = [
-    # Coordinate types
+    # Coordinate utilities
     'Coordinate',
-    'Coordinate_Type',
+    'Type',
     'Geographic',
     'UTM',
     'UPS',
     'Web_Mercator',
     'ECEF',
     'Pixel',
-
-    # Coordinate utilities
-    'EPSG_Manager',
+    'Manager',
     'Transformer',
 
     # Datum types
-    'Datum',
+    'HBase',
     'WGS84',
+    'VBase',
+    'EGM96',
+    'NAVD88',
+    'Ellipsoidal_Datum',
     'Local_Tangent_Plane',
 
     # Projector types
@@ -90,9 +90,12 @@ __all__ = [
 
     # Terrain types
     'Elevation_Point',
-    'Elevation_Source',
-    'Interpolation_Method',
+    'Terrain_Base',
+    'GeoTIFF',
+    'Flat',
+    'Catalog',
     'Terrain_Manager',
+    'Interpolation_Method',
     'elevation',
     'elevation_point',
 ]
