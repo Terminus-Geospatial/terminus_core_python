@@ -134,7 +134,7 @@ class Manager:
             ValueError: If no terrain sources are found in catalog
         """
         catalog = Catalog(catalog_root)
-        if not catalog.sources:
+        if not catalog.source_paths:
             raise ValueError(f"No terrain sources found in catalog: {catalog.catalog_root}")
         return cls([catalog], cache_enabled, interpolation, default_vertical_datum)
 

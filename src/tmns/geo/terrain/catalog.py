@@ -53,7 +53,8 @@ class Catalog(Base):
                 raise ValueError("catalog_root must be provided or TERRAIN_CATALOG_ROOT environment variable must be set")
 
         self.catalog_root = Path(catalog_root)
-        self.sources = []
+        self.source_paths: list[Path] = []  # Store file paths for lazy loading
+        self.source_cache: dict[Path, GeoTIFF] = {}  # Cache for loaded sources
         self.max_memory_mb = 500  # Maximum memory for cached tiles
         self.logger = logging.getLogger(__name__)
 
@@ -66,15 +67,27 @@ class Catalog(Base):
             self.logger.warning(f"Catalog directory does not exist: {self.catalog_root}")
             return
 
-        # Look for .tif files recursively
+        # Look for .tif files recursively - only store paths for lazy loading
         for tif_file in self.catalog_root.rglob("*.tif"):
-            try:
-                source = GeoTIFF(tif_file, self.vertical_datum, self.interpolation)
-                self.sources.append(source)
-            except Exception as e:
-                self.logger.warning(f"Could not load GeoTIFF {tif_file}: {e}")
+            self.source_paths.append(tif_file)
 
-        self.logger.info(f"Discovered {len(self.sources)} GeoTIFF sources in {self.catalog_root}")
+        self.logger.info(f"Discovered {len(self.source_paths)} GeoTIFF files in {self.catalog_root}")
+
+    def _load_source(self, tif_file: Path) -> GeoTIFF | None:
+        """Load a GeoTIFF source on-demand with caching."""
+        # Check cache first
+        if tif_file in self.source_cache:
+            return self.source_cache[tif_file]
+
+        # Load the GeoTIFF
+        try:
+            source = GeoTIFF(tif_file, self.vertical_datum, self.interpolation)
+            self.source_cache[tif_file] = source
+            self.logger.debug(f"Loaded GeoTIFF: {tif_file}")
+            return source
+        except Exception as e:
+            self.logger.warning(f"Could not load GeoTIFF {tif_file}: {e}")
+            return None
 
     def contains(self, coord: Geographic) -> bool:
         """
@@ -86,7 +99,19 @@ class Catalog(Base):
         Returns:
             True if any source has data for this coordinate, False otherwise
         """
-        return any(source.contains(coord) for source in self.sources)
+        # Check cached sources first
+        for source in self.source_cache.values():
+            if source.contains(coord):
+                return True
+
+        # Check remaining file paths by loading on-demand
+        for tif_file in self.source_paths:
+            if tif_file not in self.source_cache:
+                source = self._load_source(tif_file)
+                if source and source.contains(coord):
+                    return True
+
+        return False
 
     def elevation_meters(self, coord: Geographic, target_datum: VBase | None = None) -> float | None:
         """
@@ -100,25 +125,34 @@ class Catalog(Base):
             Elevation in meters in target datum (or source datum if None),
             or None if no data found
         """
-        # Try each source that contains the coordinate
-        for source in self.sources:
-            if hasattr(source, 'contains') and source.contains(coord):
+        # Try cached sources first
+        for source in self.source_cache.values():
+            if source.contains(coord):
                 elevation = source.elevation_meters(coord, target_datum)
                 if elevation is not None:
                     return elevation
+
+        # Try remaining file paths by loading on-demand
+        for tif_file in self.source_paths:
+            if tif_file not in self.source_cache:
+                source = self._load_source(tif_file)
+                if source and source.contains(coord):
+                    elevation = source.elevation_meters(coord, target_datum)
+                    if elevation is not None:
+                        return elevation
 
         return None
 
     def get_sources_for_coordinate(self, coord: Geographic) -> list[GeoTIFF]:
         """Get all sources that contain the given coordinate."""
-        return [source for source in self.sources if hasattr(source, 'contains') and source.contains(coord)]
+        return [source for source in self.source_cache.values() if source.contains(coord)]
 
     def info(self) -> dict[str, Any]:
         """Get detailed information about this terrain catalog."""
         info = super().info()
         info.update({
             'catalog_root': str(self.catalog_root),
-            'total_sources': len(self.sources),
+            'total_sources': len(self.source_cache),
             'sources': [
                 {
                     'name': source.name,
@@ -126,7 +160,7 @@ class Catalog(Base):
                     'bounds': source.bounds._asdict() if hasattr(source, 'bounds') and source.bounds else None,
                     'epsg_code': source.epsg_code if hasattr(source, 'epsg_code') else None
                 }
-                for source in self.sources
+                for source in self.source_cache.values()
             ]
         })
         return info

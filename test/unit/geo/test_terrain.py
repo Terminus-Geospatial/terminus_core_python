@@ -67,7 +67,8 @@ def mock_catalog():
     catalog = Mock(spec=Catalog)
     catalog.name = "Terrain Catalog"
     catalog.elevation_meters.return_value = 100.5
-    catalog.sources = [mock_geotiff_source()]
+    catalog.source_cache = {Path("/test.tif"): mock_geotiff_source()}
+    catalog.source_paths = [Path("/test.tif")]
     return catalog
 
 
@@ -241,9 +242,10 @@ class Test_Catalog:
         with patch('tmns.geo.terrain.catalog.GeoTIFF') as mock_geotiff:
             catalog = Catalog("/test/catalog")
 
-            # Should attempt to create sources for found files
-            assert mock_geotiff.call_count == 2
-            assert len(catalog.sources) == 2
+            # Should discover files but not load them (lazy loading)
+            assert mock_geotiff.call_count == 0
+            assert len(catalog.source_paths) == 2
+            assert len(catalog.source_cache) == 0
 
     @patch('pathlib.Path.exists')
     def test_catalog_missing_directory(self, mock_exists):
@@ -251,12 +253,14 @@ class Test_Catalog:
         mock_exists.return_value = False
 
         catalog = Catalog("/nonexistent/catalog")
-        assert len(catalog.sources) == 0
+        assert len(catalog.source_paths) == 0
+        assert len(catalog.source_cache) == 0
 
     def test_elevation_meters_from_sources(self, mock_geotiff_source):
         """Test getting elevation from catalog sources."""
         catalog = Catalog.__new__(Catalog)  # Create without init
-        catalog.sources = [mock_geotiff_source]
+        catalog.source_cache = {Path("/test.tif"): mock_geotiff_source}
+        catalog.source_paths = [Path("/test.tif")]
         catalog.catalog_root = Path("/test")
 
         coord = Geographic(40.7, -74.0)
@@ -268,7 +272,8 @@ class Test_Catalog:
     def test_get_sources_for_coordinate(self, mock_geotiff_source):
         """Test getting sources that contain a coordinate."""
         catalog = Catalog.__new__(Catalog)  # Create without init
-        catalog.sources = [mock_geotiff_source]
+        catalog.source_cache = {Path("/test.tif"): mock_geotiff_source}
+        catalog.source_paths = [Path("/test.tif")]
         catalog.catalog_root = Path("/test")
 
         coord = Geographic(40.7, -74.0)
