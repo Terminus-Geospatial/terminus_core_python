@@ -133,6 +133,45 @@ class Affine(Projector):
     def is_identity(self) -> bool:
         return False
 
+    def serialize_model_data(self) -> dict:
+        """Serialize the affine transformation matrices to a dict.
+
+        Returns:
+            Dict with 'transform_matrix' and 'inverse_matrix' as lists.
+        """
+        if self._transform_matrix is None:
+            raise ValueError("Transform matrix not set. Cannot serialize.")
+
+        return {
+            'transform_matrix': self._transform_matrix.tolist(),
+            'inverse_matrix': self._inverse_matrix.tolist() if self._inverse_matrix is not None else None
+        }
+
+    def deserialize_model_data(self, data: dict) -> None:
+        """Deserialize affine transformation matrices from a dict.
+
+        Args:
+            data: Dict with 'transform_matrix' and optionally 'inverse_matrix',
+                  or old format with nested 'affine_data' structure.
+        """
+        # Handle old sidecar format with nested affine_data
+        if 'affine_data' in data:
+            data = data['affine_data']
+
+        if 'transform_matrix' not in data:
+            raise ValueError("transform_matrix required for deserialization")
+
+        transform_matrix = np.array(data['transform_matrix'], dtype=float)
+        self._transform_matrix = transform_matrix
+
+        if 'inverse_matrix' in data and data['inverse_matrix'] is not None:
+            self._inverse_matrix = np.array(data['inverse_matrix'], dtype=float)
+        else:
+            try:
+                self._inverse_matrix = np.linalg.inv(transform_matrix)
+            except np.linalg.LinAlgError:
+                self._inverse_matrix = None
+
     def solve_from_gcps(self, gcps: list[tuple[Pixel, Geographic]]) -> None:
         """Fit affine transformation matrix from Ground Control Points.
 

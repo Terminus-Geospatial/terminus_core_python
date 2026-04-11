@@ -271,6 +271,34 @@ class RPC(Projector):
     def is_identity(self) -> bool:
         return False
 
+    def serialize_model_data(self) -> dict:
+        """Serialize the RPC model data to a dict.
+
+        Returns:
+            Dict containing RPC coefficients and normalization parameters.
+        """
+        if not self._coeffs:
+            raise ValueError("RPC coefficients not set. Cannot serialize.")
+
+        return {
+            'coeffs': self._coeffs,
+            'offsets': self._offsets,
+            'scales': self._scales,
+        }
+
+    def deserialize_model_data(self, data: dict) -> None:
+        """Deserialize RPC model data from a dict.
+
+        Args:
+            data: Dict containing RPC coefficients and normalization parameters.
+        """
+        if 'coeffs' not in data or 'offsets' not in data or 'scales' not in data:
+            raise ValueError("coeffs, offsets, and scales required for RPC deserialization")
+
+        self._coeffs = data['coeffs']
+        self._offsets = data['offsets']
+        self._scales = data['scales']
+
     def image_bounds(self) -> list[Pixel]:
         """Return image bounding box as 4 corner pixels.
 

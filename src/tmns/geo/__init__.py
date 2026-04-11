@@ -19,6 +19,9 @@ This package provides coordinate types, transformations, and utilities
 for various geospatial coordinate systems used in Terminus applications.
 """
 
+# Export geographic constants
+from tmns.geo.constants import EARTH_CIRCUMFERENCE_M, METERS_PER_DEG_LAT
+
 # Export coordinate components
 from tmns.geo.coord import (
     ECEF,
@@ -26,6 +29,7 @@ from tmns.geo.coord import (
     UTM,
     Coordinate,
     Geographic,
+    Geographic_Bounds,
     Manager,
     Pixel,
     Transformer,
@@ -72,10 +76,15 @@ from tmns.geo.terrain import (
 
 # Export all components
 __all__ = [
+    # Geographic constants
+    'EARTH_CIRCUMFERENCE_M',
+    'METERS_PER_DEG_LAT',
+
     # Coordinate utilities
     'Coordinate',
     'Type',
     'Geographic',
+    'Geographic_Bounds',
     'UTM',
     'UPS',
     'Web_Mercator',

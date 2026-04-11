@@ -74,3 +74,19 @@ class Identity(Projector):
     @property
     def is_identity(self) -> bool:
         return True
+
+    def serialize_model_data(self) -> dict:
+        """Serialize identity model data (empty, no model state).
+
+        Returns:
+            Empty dict since Identity has no model parameters.
+        """
+        return {}
+
+    def deserialize_model_data(self, data: dict) -> None:
+        """Deserialize identity model data (no-op, no model state).
+
+        Args:
+            data: Dict (ignored, Identity has no model parameters).
+        """
+        pass

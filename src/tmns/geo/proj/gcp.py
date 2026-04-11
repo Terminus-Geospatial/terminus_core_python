@@ -70,14 +70,16 @@ class GCP:
     @classmethod
     def from_dict(cls, data):
         """Create GCP from dictionary."""
-        test_pixel = Pixel.create(data['test_pixel']['x'], data['test_pixel']['y'])
-        ref_pixel = Pixel.create(data['reference_pixel']['x'], data['reference_pixel']['y'])
+        tp = data['test_pixel']
+        test_pixel = Pixel.create(tp.get('x', tp.get('x_px')), tp.get('y', tp.get('y_px')))
+        rp = data['reference_pixel']
+        ref_pixel = Pixel.create(rp.get('x', rp.get('x_px')), rp.get('y', rp.get('y_px')))
 
         geo_data = data['geographic']
         geographic = Geographic.create(
-            geo_data['latitude'],
-            geo_data['longitude'],
-            geo_data.get('elevation')
+            geo_data.get('latitude', geo_data.get('latitude_deg')),
+            geo_data.get('longitude', geo_data.get('longitude_deg')),
+            geo_data.get('elevation', geo_data.get('altitude_m'))
         )
 
         projected = None

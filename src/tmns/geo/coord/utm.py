@@ -36,7 +36,7 @@ import numpy as np
 from tmns.geo.coord.crs import CRS
 
 # Project Libraries
-from tmns.geo.coord.types import Type
+from tmns.geo.coord.types import Extent_Params, Type
 
 
 @dataclass
@@ -364,3 +364,22 @@ class UTM:
         # Northing bounds
         if not (0 <= self.northing_m <= 10000000):
             raise ValueError(f"UTM northing {self.northing_m} is outside valid range [0, 10,000,000] meters")
+
+    @staticmethod
+    def compute_extent_params(min_coord: UTM, max_coord: UTM, shape: tuple[int, int]) -> Extent_Params:
+        """Compute extent parameters for grid generation.
+
+        Args:
+            min_coord: Minimum coordinate (southwest corner)
+            max_coord: Maximum coordinate (northeast corner)
+            shape: Output shape (width, height) in pixels
+
+        Returns:
+            Extent_Params with width_m, height_m, easting_step, northing_step
+        """
+        width_m = max_coord.easting_m - min_coord.easting_m
+        height_m = max_coord.northing_m - min_coord.northing_m
+        out_w, out_h = shape
+        easting_step = width_m / out_w
+        northing_step = height_m / out_h
+        return Extent_Params(width=width_m, height=height_m, step_x=easting_step, step_y=northing_step)

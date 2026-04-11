@@ -5,6 +5,19 @@ All notable changes to terminus-core-python will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-04-10
+
+### Added
+- **Extent_Params**: Added NamedTuple for coordinate extent parameters (width, height, step_x, step_y) to reduce boilerplate in grid generation
+- **Geographic.compute_extent_params**: Added static method to compute extent parameters for grid generation
+- **UTM.compute_extent_params**: Added static method to compute extent parameters for grid generation
+- **Warp_Extent**: Class to represent a geographic extent with min and max points
+- **Warp_Extent.to_dict**: Added serialization method for Warp_Extent to dictionary
+- **Warp_Extent.from_dict**: Added deserialization method for Warp_Extent from dictionary
+- **Projector serialization**: Added serialize_model_data() method to Projector base class for GUI sidecar building
+- **Geographic tests**: Added unit tests for compute_extent_params method
+
+
 ## [0.1.1] - 2026-04-09
 
 ### Added

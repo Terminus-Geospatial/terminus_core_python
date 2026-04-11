@@ -8,38 +8,29 @@
 #*                                                                                    *#
 #**************************** INTELLECTUAL PROPERTY RIGHTS ****************************#
 #
-#    File:    __init__.py
+#    File:    constants.py
 #    Author:  Marvin Smith
-#    Date:    04/04/2026
+#    Date:    04/10/2026
 #
 """
-Projection and coordinate transformation module
+Geographic constants for the WGS-84 ellipsoid and related computations.
 """
 
-# Base classes and enums
-from tmns.geo.proj.affine import Affine
-from tmns.geo.proj.base import Projector, Transformation_Type, Warp_Extent
+# Python Standard Libraries
+import math
 
-# Ground Control Points
-from tmns.geo.proj.gcp import GCP
+# Project Libraries
+from tmns.geo.hdatum import WGS84
 
-# Projector implementations
-from tmns.geo.proj.identity import Identity
-from tmns.geo.proj.rpc import RPC
-from tmns.geo.proj.tps import TPS
+_WGS84 = WGS84()
 
-__all__ = [
-    # Base classes
-    'Projector',
-    'Transformation_Type',
-    'Warp_Extent',
+EARTH_CIRCUMFERENCE_M: float = 2.0 * math.pi * _WGS84.semi_major_axis
+"""Equatorial circumference of the Earth in metres, derived from the WGS-84 semi-major axis."""
 
-    # Projector implementations
-    'Identity',
-    'Affine',
-    'RPC',
-    'TPS',
+METERS_PER_DEG_LAT: float = EARTH_CIRCUMFERENCE_M / 360.0
+"""Equatorial metres per degree of latitude (WGS-84).
 
-    # Ground Control Points
-    'GCP',
-]
+This is an equatorial approximation (~111,320 m/°).  For longitude scaling at a
+given latitude, multiply by cos(latitude_radians):
+    meters_per_deg_lon = METERS_PER_DEG_LAT * cos(lat_rad)
+"""

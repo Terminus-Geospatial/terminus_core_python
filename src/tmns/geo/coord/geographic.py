@@ -46,7 +46,7 @@ from dataclasses import dataclass
 from tmns.geo.coord.crs import CRS
 
 # Project Libraries
-from tmns.geo.coord.types import Type
+from tmns.geo.coord.types import Extent_Params, Type
 
 
 @dataclass
@@ -368,3 +368,25 @@ class Geographic:
     def elevation(self) -> float | None:
         """Get elevation in meters."""
         return self.altitude_m
+
+    @staticmethod
+    def compute_extent_params(min_coord: Geographic, max_coord: Geographic, shape: tuple[int, int]) -> Extent_Params:
+        """Compute extent parameters for grid generation.
+
+        Args:
+            min_coord: Minimum coordinate (southwest corner)
+            max_coord: Maximum coordinate (northeast corner)
+            shape: Output shape (width, height) in pixels
+
+        Returns:
+            Extent_Params with width_deg, height_deg, lon_step, lat_step
+        """
+        width_deg = max_coord.longitude_deg - min_coord.longitude_deg
+        height_deg = max_coord.latitude_deg - min_coord.latitude_deg
+        out_w, out_h = shape
+        lon_step = width_deg / out_w
+        lat_step = height_deg / out_h
+        return Extent_Params( width  = width_deg,
+                              height = height_deg,
+                              step_x = lon_step,
+                              step_y = lat_step )

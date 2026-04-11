@@ -18,6 +18,7 @@ Coordinate type definitions.
 
 # Python Standard Libraries
 from enum import Enum
+from typing import NamedTuple
 
 
 class Type(Enum):
@@ -30,6 +31,22 @@ class Type(Enum):
     PIXEL = "pixel"
 
 
+class Extent_Params(NamedTuple):
+    """Parameters for grid generation from coordinate extent.
+
+    Attributes:
+        width: Width in coordinate units (degrees for Geographic, meters for UTM)
+        height: Height in coordinate units (degrees for Geographic, meters for UTM)
+        step_x: Step size in x direction (lon_step for Geographic, easting_step for UTM)
+        step_y: Step size in y direction (lat_step for Geographic, northing_step for UTM)
+    """
+    width: float
+    height: float
+    step_x: float
+    step_y: float
+
+
 __all__ = [
     'Type',
+    'Extent_Params',
 ]

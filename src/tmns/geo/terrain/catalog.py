@@ -53,41 +53,31 @@ class Catalog(Base):
                 raise ValueError("catalog_root must be provided or TERRAIN_CATALOG_ROOT environment variable must be set")
 
         self.catalog_root = Path(catalog_root)
-        self.source_paths: list[Path] = []  # Store file paths for lazy loading
-        self.source_cache: dict[Path, GeoTIFF] = {}  # Cache for loaded sources
+        self.source_cache: dict[Path, GeoTIFF] = {}
         self.max_memory_mb = 500  # Maximum memory for cached tiles
         self.logger = logging.getLogger(__name__)
 
-        # Discover GeoTIFF files
+        # Discover and index GeoTIFF files
         self._discover_sources()
 
     def _discover_sources(self):
-        """Discover all GeoTIFF files in the catalog directory."""
+        """Discover all GeoTIFF files in the catalog directory.
+
+        Each file is instantiated as a GeoTIFF, which reads the CRS and bounds
+        from the file header only — no raster data is loaded at this stage.
+        """
         if not self.catalog_root.exists():
             self.logger.warning(f"Catalog directory does not exist: {self.catalog_root}")
             return
 
-        # Look for .tif files recursively - only store paths for lazy loading
         for tif_file in self.catalog_root.rglob("*.tif"):
-            self.source_paths.append(tif_file)
+            try:
+                source = GeoTIFF(tif_file, self.vertical_datum, self.interpolation)
+                self.source_cache[tif_file] = source
+            except Exception as e:
+                self.logger.warning(f"Could not index GeoTIFF {tif_file}: {e}")
 
-        self.logger.info(f"Discovered {len(self.source_paths)} GeoTIFF files in {self.catalog_root}")
-
-    def _load_source(self, tif_file: Path) -> GeoTIFF | None:
-        """Load a GeoTIFF source on-demand with caching."""
-        # Check cache first
-        if tif_file in self.source_cache:
-            return self.source_cache[tif_file]
-
-        # Load the GeoTIFF
-        try:
-            source = GeoTIFF(tif_file, self.vertical_datum, self.interpolation)
-            self.source_cache[tif_file] = source
-            self.logger.debug(f"Loaded GeoTIFF: {tif_file}")
-            return source
-        except Exception as e:
-            self.logger.warning(f"Could not load GeoTIFF {tif_file}: {e}")
-            return None
+        self.logger.info(f"Discovered {len(self.source_cache)} GeoTIFF files in {self.catalog_root}")
 
     def contains(self, coord: Geographic) -> bool:
         """
@@ -99,19 +89,7 @@ class Catalog(Base):
         Returns:
             True if any source has data for this coordinate, False otherwise
         """
-        # Check cached sources first
-        for source in self.source_cache.values():
-            if source.contains(coord):
-                return True
-
-        # Check remaining file paths by loading on-demand
-        for tif_file in self.source_paths:
-            if tif_file not in self.source_cache:
-                source = self._load_source(tif_file)
-                if source and source.contains(coord):
-                    return True
-
-        return False
+        return any(source.contains(coord) for source in self.source_cache.values())
 
     def elevation_meters(self, coord: Geographic, target_datum: VBase | None = None) -> float | None:
         """
@@ -125,21 +103,11 @@ class Catalog(Base):
             Elevation in meters in target datum (or source datum if None),
             or None if no data found
         """
-        # Try cached sources first
         for source in self.source_cache.values():
             if source.contains(coord):
                 elevation = source.elevation_meters(coord, target_datum)
                 if elevation is not None:
                     return elevation
-
-        # Try remaining file paths by loading on-demand
-        for tif_file in self.source_paths:
-            if tif_file not in self.source_cache:
-                source = self._load_source(tif_file)
-                if source and source.contains(coord):
-                    elevation = source.elevation_meters(coord, target_datum)
-                    if elevation is not None:
-                        return elevation
 
         return None
 

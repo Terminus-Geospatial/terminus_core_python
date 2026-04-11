@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Union
 
 # Project Libraries
+from tmns.geo.coord.bounds import Geographic_Bounds
 from tmns.geo.coord.crs import CRS
 from tmns.geo.coord.ecef import ECEF
 from tmns.geo.coord.epsg import Code, Manager
@@ -55,6 +56,9 @@ __all__ = [
 
     # Coordinate Reference System
     'CRS',
+
+    # Bounding box
+    'Geographic_Bounds',
 
     # Coordinate types
     'Type',

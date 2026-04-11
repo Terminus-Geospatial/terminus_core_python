@@ -24,7 +24,7 @@ import pytest
 
 # Project Libraries
 from tmns.geo.coord.geographic import Geographic
-from tmns.geo.coord.types import Type
+from tmns.geo.coord.types import Extent_Params, Type
 
 
 # Fixtures for common objects
@@ -164,3 +164,56 @@ class Test_Geographic_Coordinate:
         distance = Geographic.distance(nyc_geographic, sydney_geographic)
         assert distance > 0  # Should be positive distance
         assert distance > 1000000  # Should be thousands of kilometers
+
+    def test_compute_extent_params_basic(self):
+        """Test compute_extent_params with basic extent."""
+        min_geo = Geographic.create(35.0, -119.0)
+        max_geo = Geographic.create(36.0, -118.0)
+        shape = (100, 100)
+
+        params = Geographic.compute_extent_params(min_geo, max_geo, shape)
+
+        assert isinstance(params, Extent_Params)
+        assert params.width == 1.0  # 1 degree longitude
+        assert params.height == 1.0  # 1 degree latitude
+        assert params.step_x == 0.01  # 1 degree / 100 pixels
+        assert params.step_y == 0.01  # 1 degree / 100 pixels
+
+    def test_compute_extent_params_small_shape(self):
+        """Test compute_extent_params with small output shape."""
+        min_geo = Geographic.create(35.0, -119.0)
+        max_geo = Geographic.create(35.5, -118.5)
+        shape = (10, 10)
+
+        params = Geographic.compute_extent_params(min_geo, max_geo, shape)
+
+        assert params.width == 0.5  # 0.5 degree longitude
+        assert params.height == 0.5  # 0.5 degree latitude
+        assert params.step_x == 0.05  # 0.5 degree / 10 pixels
+        assert params.step_y == 0.05  # 0.5 degree / 10 pixels
+
+    def test_compute_extent_params_large_shape(self):
+        """Test compute_extent_params with large output shape."""
+        min_geo = Geographic.create(35.0, -119.0)
+        max_geo = Geographic.create(36.0, -118.0)
+        shape = (1000, 1000)
+
+        params = Geographic.compute_extent_params(min_geo, max_geo, shape)
+
+        assert params.width == 1.0  # 1 degree longitude
+        assert params.height == 1.0  # 1 degree latitude
+        assert params.step_x == 0.001  # 1 degree / 1000 pixels
+        assert params.step_y == 0.001  # 1 degree / 1000 pixels
+
+    def test_compute_extent_params_rectangular_extent(self):
+        """Test compute_extent_params with non-square extent."""
+        min_geo = Geographic.create(35.0, -119.0)
+        max_geo = Geographic.create(35.5, -118.0)  # 0.5 deg lat, 1 deg lon
+        shape = (100, 50)
+
+        params = Geographic.compute_extent_params(min_geo, max_geo, shape)
+
+        assert params.width == 1.0  # 1 degree longitude
+        assert params.height == 0.5  # 0.5 degree latitude
+        assert params.step_x == 0.01  # 1 degree / 100 pixels
+        assert params.step_y == 0.01  # 0.5 degree / 50 pixels

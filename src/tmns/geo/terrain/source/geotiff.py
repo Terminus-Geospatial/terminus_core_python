@@ -54,21 +54,22 @@ class GeoTIFF(Base):
 
         self.file_path = Path(file_path)
         self.dataset = None
-        self.bounds = None
-        self.epsg_code = None
         self._transformer = None
 
         # Validate file exists
         if not self.file_path.exists():
             raise FileNotFoundError(f"GeoTIFF file not found: {self.file_path}")
 
+        # Load CRS and bounds from header only — no raster data read
+        with rasterio.open(self.file_path) as ds:
+            self.bounds = ds.bounds
+            self.epsg_code = ds.crs.to_epsg()
+
     def _load_dataset(self):
-        """Lazy load the GeoTIFF dataset."""
+        """Lazy load the GeoTIFF raster dataset for pixel sampling."""
         if self.dataset is None:
             try:
                 self.dataset = rasterio.open(self.file_path)
-                self.bounds = self.dataset.bounds
-                self.epsg_code = self.dataset.crs.to_epsg()
                 logging.info(f"Loaded GeoTIFF: {self.file_path} (EPSG:{self.epsg_code})")
             except Exception as e:
                 logging.error(f"Failed to load GeoTIFF {self.file_path}: {e}")
@@ -77,14 +78,12 @@ class GeoTIFF(Base):
     def _get_transformer(self):
         """Get coordinate transformer for this dataset."""
         if self._transformer is None:
-            self._load_dataset()
             self._transformer = Transformer()
         return self._transformer
 
     def contains(self, coord: Geographic) -> bool:
         """Check if this GeoTIFF contains data for the specified coordinate."""
         try:
-            self._load_dataset()
             transformer = self._get_transformer()
 
             # Transform geographic coordinate to dataset CRS
@@ -93,7 +92,7 @@ class GeoTIFF(Base):
 
             # Check if point is within bounds
             return (self.bounds.left <= x <= self.bounds.right and
-                   self.bounds.bottom <= y <= self.bounds.top)
+                    self.bounds.bottom <= y <= self.bounds.top)
         except Exception as e:
             logging.error(f"Error checking containment: {e}")
             return False

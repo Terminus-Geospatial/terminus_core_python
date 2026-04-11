@@ -71,15 +71,29 @@ if [ -n "$LAST_CHANGELOG_COMMIT" ]; then
     echo ""
 
     # Get commit messages and categorize
-    echo "### Major Changes:"
+    echo "### Committed Changes:"
     git log --oneline --since="$LAST_CHANGELOG_COMMIT" --all | \
     grep -E "(feat|fix|refactor|BREAKING|docs|test)" | \
     head -20
 else
-    echo "### Recent Changes (Last 30 Days):"
+    echo "### Recent Committed Changes (Last 30 Days):"
     git log --oneline --since="1 month ago" --all | \
     grep -E "(feat|fix|refactor|BREAKING|docs|test)" | \
     head -20
+fi
+
+# Check for uncommitted changes
+echo ""
+echo "### Uncommitted Changes:"
+if git diff --quiet && git diff --cached --quiet; then
+    echo "No uncommitted changes detected."
+else
+    echo "Uncommitted changes found:"
+    git status --short
+    echo ""
+    echo "Uncommitted files:"
+    git diff --name-only
+    git diff --cached --name-only
 fi
 ```
 
@@ -211,3 +225,7 @@ echo "Changelog update complete! Please commit manually."
 - Use semantic versioning categories (Added, Changed, Fixed, etc.)
 - Include breaking changes prominently
 - Group related changes together
+- This workflow analyzes both COMMITTED and UNCOMMITTED changes
+- For committed changes, it uses git log to analyze commit messages
+- For uncommitted changes, it uses git status and git diff to show modified files
+- Manual editing of the changelog.md is still required to add meaningful descriptions

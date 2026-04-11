@@ -391,6 +391,17 @@ class TPS(Projector):
         else:
             return r_squared * math.log(r_squared)
 
+    def solve_from_gcps(self, gcps: list[tuple[Pixel, Geographic]]) -> None:
+        """Fit TPS model from Ground Control Points.
+
+        Convenience wrapper around ``update_model(control_points=gcps)``
+        so all projectors share a uniform fitting API.
+
+        Args:
+            gcps: List of (Pixel, Geographic) pairs. Requires at least 3.
+        """
+        self.update_model(control_points=gcps)
+
     @property
     def transformation_type(self) -> Transformation_Type:
         return Transformation_Type.TPS
@@ -398,6 +409,57 @@ class TPS(Projector):
     @property
     def is_identity(self) -> bool:
         return False
+
+    def serialize_model_data(self) -> dict:
+        """Serialize the TPS model data to a dict.
+
+        Returns:
+            Dict containing control points, weights, and linear terms.
+        """
+        if not self._control_points:
+            raise ValueError("TPS model not fitted. Cannot serialize.")
+
+        # Convert control points to a serializable format
+        serializable_control_points = [
+            (
+                {'x_px': p.x_px, 'y_px': p.y_px},
+                {'latitude_deg': g.latitude_deg, 'longitude_deg': g.longitude_deg}
+            )
+            for p, g in self._control_points
+        ]
+
+        return {
+            'control_points': serializable_control_points,
+            'weights_x': self._weights_x.tolist() if self._weights_x is not None else None,
+            'weights_y': self._weights_y.tolist() if self._weights_y is not None else None,
+            'linear_terms_x': self._linear_terms_x,
+            'linear_terms_y': self._linear_terms_y,
+        }
+
+    def deserialize_model_data(self, data: dict) -> None:
+        """Deserialize TPS model data from a dict.
+
+        Args:
+            data: Dict containing control points, weights, and linear terms.
+        """
+        from tmns.geo.coord import Geographic, Pixel
+
+        if 'control_points' not in data:
+            raise ValueError("control_points required for TPS deserialization")
+
+        # Reconstruct control points
+        self._control_points = [
+            (
+                Pixel(x_px=cp_data[0]['x_px'], y_px=cp_data[0]['y_px']),
+                Geographic(latitude_deg=cp_data[1]['latitude_deg'], longitude_deg=cp_data[1]['longitude_deg'])
+            )
+            for cp_data in data['control_points']
+        ]
+
+        self._weights_x = np.array(data['weights_x']) if data['weights_x'] is not None else None
+        self._weights_y = np.array(data['weights_y']) if data['weights_y'] is not None else None
+        self._linear_terms_x = tuple(data['linear_terms_x'])
+        self._linear_terms_y = tuple(data['linear_terms_y'])
 
     def image_bounds(self) -> list[Pixel]:
         """Return image bounding box as 4 corner pixels.
