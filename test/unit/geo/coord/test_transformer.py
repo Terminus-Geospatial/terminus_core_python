@@ -213,3 +213,99 @@ class Test_Transformer:
         invalid_geo = Geographic.create(40.7, -74.0)  # Valid coordinate
         with pytest.raises(ValueError):
             transformer.transform(invalid_geo, "EPSG:99999")  # Invalid EPSG
+
+    def test_geo_to_utm_with_zone(self, transformer):
+        """Test geo_to_utm with explicit zone parameter."""
+        geo = Geographic.create(40.7, -74.0)
+        utm = transformer.geo_to_utm(geo, zone=18)
+
+        assert isinstance(utm, UTM)
+        assert utm.crs == "EPSG:32618"  # UTM zone 18N
+
+    def test_geo_to_utm_auto_zone(self, transformer):
+        """Test geo_to_utm with automatic zone detection."""
+        geo = Geographic.create(40.7, -74.0)
+        utm = transformer.geo_to_utm(geo)
+
+        assert isinstance(utm, UTM)
+        assert utm.crs == "EPSG:32618"  # UTM zone 18N
+
+    def test_geo_to_web_mercator_direct(self, transformer):
+        """Test geo_to_web_mercator direct method."""
+        geo = Geographic.create(40.7, -74.0)
+        wm = transformer.geo_to_web_mercator(geo)
+
+        assert isinstance(wm, Web_Mercator)
+
+    def test_geo_to_ecef_direct(self, transformer):
+        """Test geo_to_ecef direct method."""
+        geo = Geographic.create(40.7, -74.0, 10.5)
+        ecef = transformer.geo_to_ecef(geo)
+
+        assert isinstance(ecef, ECEF)
+        assert ecef.z_m > 0  # Northern hemisphere
+
+    def test_geo_to_ecef_no_altitude(self, transformer):
+        """Test geo_to_ecef without altitude."""
+        geo = Geographic.create(40.7, -74.0)
+        ecef = transformer.geo_to_ecef(geo)
+
+        assert isinstance(ecef, ECEF)
+        assert ecef.z_m > 0
+
+    def test_utm_to_geo_direct(self, transformer):
+        """Test utm_to_geo direct method."""
+        utm = UTM.create(583000, 4507000, "EPSG:32618", 10.5)
+        geo = transformer.utm_to_geo(utm)
+
+        assert isinstance(geo, Geographic)
+        assert geo.altitude_m == 10.5
+
+    def test_web_mercator_to_geo_direct(self, transformer):
+        """Test web_mercator_to_geo direct method."""
+        wm = Web_Mercator.create(-8238310.24, 4969803.74, 10.5)
+        geo = transformer.web_mercator_to_geo(wm)
+
+        assert isinstance(geo, Geographic)
+
+    def test_ecef_to_geo_direct(self, transformer):
+        """Test ecef_to_geo direct method."""
+        ecef = ECEF.create(-2700000, -4300000, 3850000)
+        geo = transformer.ecef_to_geo(ecef)
+
+        assert isinstance(geo, Geographic)
+        assert -90 <= geo.latitude_deg <= 90
+        assert -180 <= geo.longitude_deg <= 180
+
+    def test_get_utm_zone(self, transformer):
+        """Test get_utm_zone method."""
+        # NYC should be in zone 18N
+        crs_str = transformer.get_utm_zone(-74.0, 40.7)
+        assert crs_str == "EPSG:32618"
+
+        # Southern hemisphere - same zone number (18), different base
+        crs_str = transformer.get_utm_zone(-74.0, -40.7)
+        assert crs_str == "EPSG:32718"
+
+    def test_get_epsg_info(self, transformer):
+        """Test get_epsg_info method."""
+        info = transformer.get_epsg_info(4326)
+        assert info['code'] == 4326
+        assert info['string'] == "EPSG:4326"
+        assert 'coordinate_type' in info
+        assert 'is_utm' in info
+        assert 'is_ups' in info
+
+    def test_get_epsg_info_from_string(self, transformer):
+        """Test get_epsg_info_from_string method."""
+        info = transformer.get_epsg_info_from_string("EPSG:4326")
+        assert info['code'] == 4326
+        assert info['string'] == "EPSG:4326"
+
+    def test_to_utm(self, transformer):
+        """Test to_utm method."""
+        geo = Geographic.create(40.7, -74.0)
+        utm = transformer.to_utm(geo)
+
+        assert isinstance(utm, UTM)
+        assert utm.crs == "EPSG:32618"

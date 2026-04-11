@@ -341,8 +341,8 @@ class Transformer:
         zone = int((longitude + 180) / 6) + 1
 
         # Determine hemisphere and create EPSG code
-        hemisphere = "N" if latitude >= 0 else "S"
-        epsg_code = Code.get_utm_zone(zone, hemisphere)
+        northern = latitude >= 0
+        epsg_code = Code.get_utm_zone(zone, northern)
 
         return Manager.to_epsg_string(epsg_code)
 
@@ -356,10 +356,8 @@ class Transformer:
             'code': epsg_code,
             'string': Manager.to_epsg_string(epsg_code),
             'coordinate_type': Manager.get_coordinate_type(epsg_code),
-            'description': Manager.get_description(epsg_code),
             'is_utm': Manager.is_utm_zone(epsg_code),
             'is_ups': Manager.is_ups_zone(epsg_code),
-            'is_polar': Manager.is_polar_region(epsg_code),
         }
 
     def get_epsg_info_from_string(self, epsg_str: str) -> dict:

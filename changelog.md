@@ -5,6 +5,11 @@ All notable changes to terminus-core-python will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-04-10
+
+### Tests
+- Expanded unit test coverage to 77% across the codebase, adding tests for the projector factory, flat terrain source, and transformer. Fixed a UTM southern hemisphere zone bug uncovered during this work.
+
 ## [0.1.2] - 2026-04-10
 
 ### Added
