@@ -28,12 +28,17 @@ a clean interface for working with different coordinate reference systems.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 # Third-Party Libraries
 import pyproj
 
 # Project Libraries
 from tmns.geo.coord.epsg import Code, Manager
+
+if TYPE_CHECKING:
+    from tmns.geo.coord import Geographic
+    from tmns.geo.coord.transformer import Transformer
 
 
 @dataclass
@@ -393,5 +398,44 @@ class CRS:
             raise ValueError(f"Invalid UTM EPSG code: {self.epsg_code}")
 
         return zone, hemisphere
+
+    def compute_transform_bounds(self, min_geo: Geographic, max_geo: Geographic) -> tuple[float, float, float, float]:
+        """
+        Compute transform bounds in this CRS's units from geographic extent.
+
+        Converts geographic bounds to the appropriate units for this CRS:
+        - Geographic (WGS84): returns bounds in degrees (lon_min, lat_min, lon_max, lat_max)
+        - UTM: returns bounds in meters (easting_min, northing_min, easting_max, northing_max)
+        - Other projected: returns bounds in projection units
+
+        Args:
+            min_geo: Minimum geographic point (southwest corner)
+            max_geo: Maximum geographic point (northeast corner)
+
+        Returns:
+            Tuple of (x_min, y_min, x_max, y_max) in CRS units
+        """
+        if self.is_geographic():
+            # Geographic CRS: return bounds in degrees
+            return (min_geo.longitude_deg, min_geo.latitude_deg,
+                    max_geo.longitude_deg, max_geo.latitude_deg)
+        elif self.is_utm_zone():
+            # UTM: convert geographic bounds to UTM meters using pyproj directly
+            # to avoid circular dependency with Transformer class
+            zone, hemisphere = self.get_utm_zone_info()
+            transformer = pyproj.Transformer.from_crs(
+                pyproj.CRS(4326), self.pyproj_crs, always_xy=True
+            )
+            x_min, y_min = transformer.transform(min_geo.longitude_deg, min_geo.latitude_deg)
+            x_max, y_max = transformer.transform(max_geo.longitude_deg, max_geo.latitude_deg)
+            return (x_min, y_min, x_max, y_max)
+        else:
+            # Other projected CRS: use pyproj to convert
+            transformer = pyproj.Transformer.from_crs(
+                pyproj.CRS(4326), self.pyproj_crs, always_xy=True
+            )
+            x_min, y_min = transformer.transform(min_geo.longitude_deg, min_geo.latitude_deg)
+            x_max, y_max = transformer.transform(max_geo.longitude_deg, max_geo.latitude_deg)
+            return (x_min, y_min, x_max, y_max)
 
 

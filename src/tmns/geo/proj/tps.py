@@ -287,6 +287,63 @@ class TPS(Projector):
 
         return Pixel(x_px=x, y_px=y)
 
+    def source_to_geographic_batch(self, pixels: np.ndarray) -> np.ndarray:
+        """Transform multiple source pixels to geographic coordinates in batch.
+
+        Vectorized version of source_to_geographic for efficient batch processing.
+        Uses numpy broadcasting to compute radial basis functions for all pixels
+        and control points simultaneously.
+
+        Args:
+            pixels: Array of pixel coordinates with shape (N, 2) where columns are [x_px, y_px]
+
+        Returns:
+            Array of geographic coordinates with shape (N, 2) where columns are [lon, lat]
+
+        Raises:
+            ValueError: If model not fitted or no control points.
+        """
+        if self._weights_x is None or self._weights_y is None:
+            raise ValueError("TPS model not fitted. Call update_model() with control points first.")
+
+        n = len(self._control_points)
+        if n == 0:
+            raise ValueError("No control points available for transformation.")
+
+        # Extract control point pixel coordinates as arrays
+        cp_pixels = np.array([[cp.x_px, cp.y_px] for cp, _ in self._control_points])  # (n, 2)
+
+        # Compute radial basis functions for all pixels and control points
+        # pixels: (N, 2), cp_pixels: (n, 2) -> broadcast to (N, n, 2)
+        # Compute squared distances: (N, n)
+        dx = pixels[:, np.newaxis, 0] - cp_pixels[np.newaxis, :, 0]  # (N, n)
+        dy = pixels[:, np.newaxis, 1] - cp_pixels[np.newaxis, :, 1]  # (N, n)
+        r_squared = dx * dx + dy * dy  # (N, n)
+
+        # Compute r² log(r²) for all distances
+        r_values = np.zeros_like(r_squared)
+        mask = r_squared > 1e-10
+        r_values[mask] = r_squared[mask] * np.log(r_squared[mask])
+
+        # Compute transformed coordinates using matrix multiplication
+        # r_values: (N, n), weights: (n,) -> dot product over n
+        r_weighted_x = np.dot(r_values, self._weights_x[:n])  # (N,)
+        r_weighted_y = np.dot(r_values, self._weights_y[:n])  # (N,)
+
+        # Add linear terms
+        lon = (r_weighted_x +
+               self._linear_terms_x[0] +
+               self._linear_terms_x[1] * pixels[:, 0] +
+               self._linear_terms_x[2] * pixels[:, 1])
+
+        lat = (r_weighted_y +
+               self._linear_terms_y[0] +
+               self._linear_terms_y[1] * pixels[:, 0] +
+               self._linear_terms_y[2] * pixels[:, 1])
+
+        # Stack as (N, 2) array: [lon, lat]
+        return np.column_stack([lon, lat])
+
 
     def update_model(self, **kwargs) -> None:
         """Fit the TPS model to a set of Ground Control Points.
