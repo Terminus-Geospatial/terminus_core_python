@@ -235,3 +235,28 @@ class Affine(Projector):
         """
         image_corners = self.image_bounds()
         return [self.source_to_geographic(pixel) for pixel in image_corners]
+
+    def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,
+                                   src_w: int, src_h: int) -> tuple[np.ndarray, np.ndarray]:
+        """Compute remap coordinates for affine transformation.
+
+        Args:
+            lon_mesh: Output longitude mesh (out_h, out_w)
+            lat_mesh: Output latitude mesh (out_h, out_w)
+            src_w: Source image width in pixels
+            src_h: Source image height in pixels
+
+        Returns:
+            Tuple of (map_x, map_y) remap coordinate arrays for cv2.remap
+        """
+        if self._inverse_matrix is None:
+            raise ValueError("Inverse matrix not set. Call update_model() first.")
+
+        out_h, out_w = lon_mesh.shape
+        inv = self._inverse_matrix
+        ones = np.ones_like(lon_mesh)
+        geo_coords = np.stack([lon_mesh, lat_mesh, ones], axis=0)
+        px = (inv @ geo_coords.reshape(3, -1)).reshape(3, out_h, out_w)
+        map_x = px[0].astype(np.float32)
+        map_y = px[1].astype(np.float32)
+        return map_x, map_y

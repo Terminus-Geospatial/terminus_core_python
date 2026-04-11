@@ -99,6 +99,39 @@ class RPC(Projector):
 
         return Pixel(x_px=sample, y_px=line)
 
+    def geographic_to_source_batch(self, geo_coords: np.ndarray) -> np.ndarray:
+        """Vectorized version of geographic_to_source for batch processing.
+
+        Args:
+            geo_coords: (N, 2) array of [longitude, latitude] coordinates
+
+        Returns:
+            (N, 2) array of [sample, line] pixel coordinates
+        """
+        if not self._coeffs:
+            raise ValueError("RPC coefficients not set. Call update_model() first.")
+
+        import numpy as np
+
+        lons = geo_coords[:, 0]
+        lats = geo_coords[:, 1]
+
+        # Normalize geographic coordinates
+        norm_lat = (lats - self._offsets['lat_off']) / self._scales['lat_scale']
+        norm_lon = (lons - self._offsets['lon_off']) / self._scales['lon_scale']
+
+        # Compute inverse transformation (vectorized)
+        line_num = self._compute_polynomial_batch(norm_lon, norm_lat, self._coeffs['inv_line_num'])
+        line_den = self._compute_polynomial_batch(norm_lon, norm_lat, self._coeffs['inv_line_den'])
+        samp_num = self._compute_polynomial_batch(norm_lon, norm_lat, self._coeffs['inv_samp_num'])
+        samp_den = self._compute_polynomial_batch(norm_lon, norm_lat, self._coeffs['inv_samp_den'])
+
+        # Apply normalization to get actual pixel coordinates
+        line = (line_num / line_den) * self._scales['line_scale'] + self._offsets['line_off']
+        sample = (samp_num / samp_den) * self._scales['samp_scale'] + self._offsets['samp_off']
+
+        return np.column_stack([sample, line])
+
 
     def update_model(self, **kwargs) -> None:
         """Update RPC coefficients and normalization parameters."""
@@ -165,6 +198,42 @@ class RPC(Projector):
             coeffs = coeffs + [0.0] * (len(terms) - len(coeffs))
 
         result = 0.0
+        for i, term in enumerate(terms[:len(coeffs)]):
+            result += coeffs[i] * term
+
+        return result
+
+    def _compute_polynomial_batch(self, x: np.ndarray, y: np.ndarray, coeffs: list[float]) -> np.ndarray:
+        """Vectorized polynomial computation for batch processing.
+
+        Args:
+            x: Array of x coordinates
+            y: Array of y coordinates
+            coeffs: Polynomial coefficients
+
+        Returns:
+            Array of polynomial values
+        """
+        import numpy as np
+
+        # Ensure we have enough coefficients
+        if len(coeffs) < 9:
+            coeffs = coeffs + [0.0] * (9 - len(coeffs))
+
+        # Compute all terms vectorized
+        terms = [
+            np.ones_like(x),        # C1: constant
+            x,                      # C2: x
+            y,                      # C3: y
+            x * y,                  # C4: x*y
+            x * x,                  # C5: x^2
+            y * y,                  # C6: y^2
+            x * x * y,              # C7: x^2*y
+            x * y * y,              # C8: x*y^2
+            x * x * y * y,          # C9: x^2*y^2
+        ]
+
+        result = np.zeros_like(x)
         for i, term in enumerate(terms[:len(coeffs)]):
             result += coeffs[i] * term
 
@@ -332,3 +401,29 @@ class RPC(Projector):
         """
         image_corners = self.image_bounds()
         return [self.source_to_geographic(pixel) for pixel in image_corners]
+
+    def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,
+                                   src_w: int, src_h: int) -> tuple[np.ndarray, np.ndarray]:
+        """Compute remap coordinates for RPC transformation.
+
+        Uses the inverse RPC transformation (geographic_to_source_batch) which is direct
+        and fast, unlike the forward transformation which requires Newton iteration.
+
+        Args:
+            lon_mesh: Output longitude mesh (out_h, out_w)
+            lat_mesh: Output latitude mesh (out_h, out_w)
+            src_w: Source image width in pixels
+            src_h: Source image height in pixels
+
+        Returns:
+            Tuple of (map_x, map_y) remap coordinate arrays for cv2.remap
+        """
+        if not self._coeffs:
+            raise ValueError("RPC coefficients not set. Call update_model() first.")
+
+        out_h, out_w = lon_mesh.shape
+        geo_coords = np.column_stack([lon_mesh.ravel(), lat_mesh.ravel()])
+        pixel_coords = self.geographic_to_source_batch(geo_coords)
+        map_x = pixel_coords[:, 0].reshape(out_h, out_w).astype(np.float32)
+        map_y = pixel_coords[:, 1].reshape(out_h, out_w).astype(np.float32)
+        return map_x, map_y

@@ -21,6 +21,9 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, NamedTuple
 
+# Third-Party Libraries
+import numpy as np
+
 # Project Libraries
 from tmns.geo.coord import Geographic, Pixel
 from tmns.geo.coord.transformer import Transformer
@@ -172,6 +175,22 @@ class Projector(ABC):
 
         Transforms image_bounds corners to geographic coordinates.
         Returns list of Geographic in order: [top-left, top-right, bottom-right, bottom-left]
+        """
+        pass
+
+    @abstractmethod
+    def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,
+                                   src_w: int, src_h: int) -> tuple[np.ndarray, np.ndarray]:
+        """Compute remap coordinates for warping.
+
+        Args:
+            lon_mesh: Output longitude mesh (out_h, out_w)
+            lat_mesh: Output latitude mesh (out_h, out_w)
+            src_w: Source image width in pixels
+            src_h: Source image height in pixels
+
+        Returns:
+            Tuple of (map_x, map_y) remap coordinate arrays for cv2.remap
         """
         pass
 

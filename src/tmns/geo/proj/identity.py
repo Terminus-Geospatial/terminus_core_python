@@ -90,3 +90,39 @@ class Identity(Projector):
             data: Dict (ignored, Identity has no model parameters).
         """
         pass
+
+    def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,
+                                   src_w: int, src_h: int) -> tuple[np.ndarray, np.ndarray]:
+        """Compute remap coordinates for identity transformation.
+
+        For identity, the output geographic coordinates map directly to source pixels
+        using the image bounds stored in source_image_attributes.
+
+        Args:
+            lon_mesh: Output longitude mesh (out_h, out_w)
+            lat_mesh: Output latitude mesh (out_h, out_w)
+            src_w: Source image width in pixels
+            src_h: Source image height in pixels
+
+        Returns:
+            Tuple of (map_x, map_y) remap coordinate arrays for cv2.remap
+        """
+        attrs = self.source_image_attributes
+        if 'bounds' not in attrs:
+            raise ValueError("Image bounds not set. Call update_model() with image_bounds.")
+
+        bounds = attrs['bounds']  # (min_x, min_y, max_x, max_y)
+        min_x, min_y, max_x, max_y = bounds
+        img_w = max_x - min_x
+        img_h = max_y - min_y
+
+        # For identity, map output geographic coordinates to source pixels
+        # using linear interpolation based on image bounds
+        lon_range = lon_mesh.max() - lon_mesh.min()
+        lat_range = lat_mesh.max() - lat_mesh.min()
+
+        # Normalize lon/lat to [0, 1] then scale to image dimensions
+        map_x = ((lon_mesh - lon_mesh.min()) / lon_range * img_w + min_x).astype(np.float32)
+        map_y = ((lat_mesh.max() - lat_mesh) / lat_range * img_h + min_y).astype(np.float32)
+
+        return map_x, map_y

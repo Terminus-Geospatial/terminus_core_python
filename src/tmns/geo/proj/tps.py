@@ -92,6 +92,7 @@ import math
 
 # Third-Party Libraries
 import numpy as np
+from scipy.interpolate import LinearNDInterpolator
 
 # Project Libraries
 from tmns.geo.coord import Geographic, Pixel
@@ -546,3 +547,59 @@ class TPS(Projector):
         """
         image_corners = self.image_bounds()
         return [self.source_to_geographic(pixel) for pixel in image_corners]
+
+    def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,
+                                   src_w: int, src_h: int) -> tuple[np.ndarray, np.ndarray]:
+        """Compute remap coordinates for TPS transformation.
+
+        Uses batch forward TPS + irregular-grid interpolation to avoid Newton iteration.
+        This is the efficient path for TPS warping.
+
+        Args:
+            lon_mesh: Output longitude mesh (out_h, out_w)
+            lat_mesh: Output latitude mesh (out_h, out_w)
+            src_w: Source image width in pixels
+            src_h: Source image height in pixels
+
+        Returns:
+            Tuple of (map_x, map_y) remap coordinate arrays for cv2.remap
+        """
+        if self._weights_x is None or self._weights_y is None:
+            raise ValueError("TPS model not fitted. Call update_model() with control points first.")
+
+        out_h, out_w = lon_mesh.shape
+
+        # Sparse grid for interpolation (200x200 = 40K points)
+        grid_size = 200
+
+        # Expand sparse grid beyond source image bounds to cover warped output extent
+        margin = 0.2  # 20% margin
+        src_x_grid = np.linspace(-src_w * margin, src_w * (1 + margin), grid_size)
+        src_y_grid = np.linspace(-src_h * margin, src_h * (1 + margin), grid_size)
+        src_x_mesh, src_y_mesh = np.meshgrid(src_x_grid, src_y_grid)
+        src_pixels = np.column_stack([src_x_mesh.ravel(), src_y_mesh.ravel()])
+
+        # Batch forward TPS evaluation (vectorized)
+        geo_coords = self.source_to_geographic_batch(src_pixels)  # (N, 2) [lon, lat]
+        lons_sparse = geo_coords[:, 0]
+        lats_sparse = geo_coords[:, 1]
+
+        # Build irregular-grid interpolator: geo -> source pixel
+        points = np.column_stack([lats_sparse, lons_sparse])
+        interp_x = LinearNDInterpolator(points, src_x_mesh.ravel())
+        interp_y = LinearNDInterpolator(points, src_y_mesh.ravel())
+
+        # Vectorized lookup for all output pixels
+        lons_flat = lon_mesh.ravel()
+        lats_flat = lat_mesh.ravel()
+        map_x_flat = interp_x(np.column_stack([lats_flat, lons_flat]))
+        map_y_flat = interp_y(np.column_stack([lats_flat, lons_flat]))
+
+        # Replace NaN with a value that will be clipped by cv2.remap
+        map_x_flat = np.nan_to_num(map_x_flat, nan=-1e6)
+        map_y_flat = np.nan_to_num(map_y_flat, nan=-1e6)
+
+        map_x = map_x_flat.reshape(out_h, out_w).astype(np.float32)
+        map_y = map_y_flat.reshape(out_h, out_w).astype(np.float32)
+
+        return map_x, map_y

@@ -5,6 +5,25 @@ All notable changes to terminus-core-python will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-04-10
+
+### Refactored
+- **Transformation architecture**: Moved remap coordinate computation from centralized if/else branches to projector-specific implementations via new `compute_remap_coordinates` abstract method
+- **Projector base class**: Added `compute_remap_coordinates(lon_mesh, lat_mesh, src_w, src_h)` abstract method for polymorphic coordinate remapping
+- **Affine projector**: Implemented `compute_remap_coordinates` using inverse matrix multiplication
+- **RPC projector**: Implemented `compute_remap_coordinates` using `geographic_to_source_batch` for efficient vectorized inverse transformation
+- **TPS projector**: Implemented `compute_remap_coordinates` using sparse grid interpolation with `LinearNDInterpolator` for efficient warping
+- **Identity projector**: Implemented `compute_remap_coordinates` using image bounds for linear mapping
+
+### Added
+- **RPC geographic_to_source_batch**: Added vectorized inverse transformation method for efficient batch coordinate conversion
+- **RPC _compute_polynomial_batch**: Added vectorized polynomial computation method for batch coefficient evaluation
+- **RPC unit tests**: Created comprehensive test suite (test_rpc.py) with 12 tests covering model updates, GCP fitting, transformations, batch operations, and polynomial computation
+
+### Changed
+- **transformation.py**: Updated `warp_image` function to use `projector.compute_remap_coordinates()` instead of type-specific conditional branches
+- **TPS imports**: Moved `LinearNDInterpolator` import to top of file to comply with module rules
+
 ## [0.1.3] - 2026-04-10
 
 ### Tests
