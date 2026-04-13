@@ -16,6 +16,9 @@
 Projection and coordinate transformation module
 """
 
+# Python Standard Libraries
+from typing import Union
+
 # Base classes and enums
 from tmns.geo.proj.affine import Affine
 from tmns.geo.proj.base import Projector, Transformation_Type, Warp_Extent
@@ -27,6 +30,10 @@ from tmns.geo.proj.gcp import GCP
 from tmns.geo.proj.identity import Identity
 from tmns.geo.proj.rpc import RPC
 from tmns.geo.proj.tps import TPS
+
+# Type aliases for common projector combinations
+# Use this alias instead of maintaining Affine | TPS | RPC in multiple places
+Projector_Union = Union[Affine, TPS, RPC]
 
 __all__ = [
     # Base classes
@@ -42,4 +49,7 @@ __all__ = [
 
     # Ground Control Points
     'GCP',
+
+    # Type aliases
+    'Projector_Union',
 ]

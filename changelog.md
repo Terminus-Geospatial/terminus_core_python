@@ -5,6 +5,18 @@ All notable changes to terminus-core-python will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-04-12
+
+### Added
+* **GCP.source** field (`str`, default `'manual'`) to track GCP origin (manual, auto, or algorithm ID)
+* **GCP.metadata** field (`dict`, default empty) for arbitrary GCP metadata (confidence scores, timestamps, etc.)
+* **Projector_Union** type alias (`Affine | TPS | RPC`) for cleaner type hints
+* Tests for `GCP.source`, `GCP.metadata`, and backward compatibility
+
+### Changed
+* **GCP documentation**: Expanded docstrings with usage examples and serialization details
+* **GCP serialization**: `to_dict()` and `from_dict()` now include `source` and `metadata` fields
+
 ## [0.1.4] - 2026-04-10
 
 ### Refactored

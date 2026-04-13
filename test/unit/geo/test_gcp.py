@@ -120,7 +120,9 @@ class TestGCP:
                 'crs': 'EPSG:32611'
             },
             'error': 2.5,
-            'enabled': True
+            'enabled': True,
+            'source': 'manual',
+            'metadata': {}
         }
 
         assert result == expected
@@ -270,3 +272,84 @@ class TestGCP:
         assert restored_gcp.projected.crs == original_gcp.projected.crs
         assert restored_gcp.error == original_gcp.error
         assert restored_gcp.enabled == original_gcp.enabled
+        assert restored_gcp.source == original_gcp.source
+
+    def test_source_defaults_to_manual(self):
+        """GCPs default to manual source when not specified."""
+        gcp = GCP(
+            id=10,
+            test_pixel=Pixel(1.0, 2.0),
+            reference_pixel=Pixel(3.0, 4.0),
+            geographic=Geographic(35.0, -118.0)
+        )
+        assert gcp.source == 'manual'
+
+    def test_source_auto(self):
+        """GCPs can be marked as auto-picked."""
+        gcp = GCP(
+            id=11,
+            test_pixel=Pixel(1.0, 2.0),
+            reference_pixel=Pixel(3.0, 4.0),
+            geographic=Geographic(35.0, -118.0),
+            source='auto'
+        )
+        assert gcp.source == 'auto'
+
+    def test_source_algorithm_id(self):
+        """GCPs can store an algorithm ID as source."""
+        gcp = GCP(
+            id=12,
+            test_pixel=Pixel(1.0, 2.0),
+            reference_pixel=Pixel(3.0, 4.0),
+            geographic=Geographic(35.0, -118.0),
+            source='sift_v1'
+        )
+        assert gcp.source == 'sift_v1'
+
+    def test_source_roundtrip_auto(self):
+        """source='auto' survives to_dict/from_dict roundtrip."""
+        gcp = GCP(
+            id=13,
+            test_pixel=Pixel(1.0, 2.0),
+            reference_pixel=Pixel(3.0, 4.0),
+            geographic=Geographic(35.0, -118.0),
+            source='auto'
+        )
+        restored = GCP.from_dict(gcp.to_dict())
+        assert restored.source == 'auto'
+
+    def test_metadata_roundtrip(self):
+        """metadata dict survives to_dict/from_dict roundtrip."""
+        gcp = GCP(
+            id=15,
+            test_pixel=Pixel(1.0, 2.0),
+            reference_pixel=Pixel(3.0, 4.0),
+            geographic=Geographic(35.0, -118.0),
+            source='sift_v1',
+            metadata={'date_added': '2026-04-12T13:20:00Z', 'confidence': 0.97}
+        )
+        restored = GCP.from_dict(gcp.to_dict())
+        assert restored.metadata['date_added'] == '2026-04-12T13:20:00Z'
+        assert restored.metadata['confidence'] == 0.97
+
+    def test_metadata_missing_in_dict_defaults_to_empty(self):
+        """Loading a GCP dict without 'metadata' key defaults to empty dict."""
+        data = {
+            'id': 16,
+            'test_pixel': {'x': 1.0, 'y': 2.0},
+            'reference_pixel': {'x': 3.0, 'y': 4.0},
+            'geographic': {'latitude': 35.0, 'longitude': -118.0}
+        }
+        gcp = GCP.from_dict(data)
+        assert gcp.metadata == {}
+
+    def test_source_missing_in_dict_defaults_to_manual(self):
+        """Loading a GCP dict without 'source' key defaults to 'manual'."""
+        data = {
+            'id': 14,
+            'test_pixel': {'x': 1.0, 'y': 2.0},
+            'reference_pixel': {'x': 3.0, 'y': 4.0},
+            'geographic': {'latitude': 35.0, 'longitude': -118.0}
+        }
+        gcp = GCP.from_dict(data)
+        assert gcp.source == 'manual'
