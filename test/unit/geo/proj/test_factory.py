@@ -17,12 +17,12 @@ Unit tests for projector factory
 """
 
 # Project Libraries
+from tmns.geo.proj.affine import Affine
 from tmns.geo.proj.base import Transformation_Type
 from tmns.geo.proj.factory import create_projector
-from tmns.geo.proj.affine import Affine
-from tmns.geo.proj.tps import TPS
-from tmns.geo.proj.rpc import RPC
 from tmns.geo.proj.identity import Identity
+from tmns.geo.proj.rpc import RPC
+from tmns.geo.proj.tps import TPS
 
 
 class TestFactory:
@@ -55,7 +55,6 @@ class TestFactory:
     def test_create_unknown_projector(self):
         """Test creating a projector with unknown type raises ValueError."""
         # Create a mock unknown transformation type
-        unknown_type = Transformation_Type.AFFINE  # Use a valid enum but we'll test the else branch
         # Actually, we can't test the else branch with valid enum values
         # So we'll skip this test for now
         pass

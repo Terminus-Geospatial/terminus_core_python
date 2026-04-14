@@ -17,6 +17,8 @@ Projector base classes and enums
 """
 
 # Python Standard Libraries
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, NamedTuple
@@ -26,6 +28,7 @@ import numpy as np
 
 # Project Libraries
 from tmns.geo.coord import Geographic, Pixel
+from tmns.geo.coord.crs import CRS
 from tmns.geo.coord.transformer import Transformer
 
 
@@ -57,8 +60,6 @@ class Warp_Extent(NamedTuple):
         Returns:
             Warp_Extent instance
         """
-        from tmns.geo.coord import Geographic
-
         # Handle corners
         corners = None
         if data.get('corners'):
@@ -203,7 +204,7 @@ class Projector(ABC):
         """Set source image attributes."""
         self._source_image_attrs.update(attrs)
 
-    def warp_extent(self, src_w: int, src_h: int) -> 'Warp_Extent':
+    def warp_extent(self, src_w: int, src_h: int) -> Warp_Extent:
         """Return the geographic bounding extent for warping a src_w x src_h image.
 
         Computes geographic coordinates of the four image corners and returns

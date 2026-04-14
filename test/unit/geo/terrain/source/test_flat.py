@@ -18,7 +18,6 @@ Unit tests for flat elevation source
 
 # Project Libraries
 from tmns.geo.coord import Geographic
-from tmns.geo.terrain.interpolation import Interpolation_Method
 from tmns.geo.terrain.source.flat import Flat
 
 

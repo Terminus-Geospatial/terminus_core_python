@@ -5,6 +5,13 @@ All notable changes to terminus-core-python will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-04-13
+
+### Changed
+* **`GeoTIFF` source**: Full raster band loaded into numpy array on first query, file handle closed immediately — all subsequent lookups are pure array indexing with no I/O
+* **`Manager`**: Removed pickle-based disk cache (`elevation_cache.pkl`) entirely — the open rasterio dataset (now numpy array) in `GeoTIFF` is sufficient in-process caching
+* **`Manager`**: Removed `cache_enabled`, `cache_file`, `elevation_cache`, `clear_cache`, `get_cache_stats`, `flush_cache` — replaced with simpler `get_info()`
+
 ## [0.1.6] - 2026-04-13
 
 ### Changed

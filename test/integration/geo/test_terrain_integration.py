@@ -142,7 +142,7 @@ class Test_Terrain_Integration:
     @pytest.fixture
     def terrain_manager(self, mock_catalog):
         """Terrain manager with mock catalog."""
-        return Manager([mock_catalog], cache_enabled=False)
+        return Manager([mock_catalog])
 
     def test_elevation_consistency_across_coordinate_types(self, terrain_manager):
         """Test elevation queries return consistent results across coordinate types."""
@@ -258,25 +258,21 @@ class Test_Terrain_Integration:
         assert all(e == 650.0 for e in elevations)
 
     def test_cache_behavior(self, mock_catalog):
-        """Test caching behavior with repeated queries."""
-        # Manager with cache enabled
-        manager = Manager([mock_catalog], cache_enabled=True)
+        """Test repeated queries return consistent results (no caching, direct source queries)."""
+        manager = Manager([mock_catalog])
 
         coord = TEST_LOCATIONS["las_vegas"]
 
-        # First query
         elevation1 = manager.elevation(coord)
-
-        # Second query (should use cache)
         elevation2 = manager.elevation(coord)
 
         assert elevation1 == elevation2
-        assert mock_catalog.elevation_meters.call_count == 1  # Only called once
+        assert mock_catalog.elevation_meters.call_count == 2  # Source called each time
 
     def test_convenience_functions(self, mock_catalog):
         """Test global convenience functions."""
         with patch('tmns.geo.terrain.get_default_manager') as mock_get_manager:
-            mock_get_manager.return_value = Manager([mock_catalog], cache_enabled=False)
+            mock_get_manager.return_value = Manager([mock_catalog])
 
             coord = TEST_LOCATIONS["mountain_whitney"]
 
@@ -311,7 +307,7 @@ class Test_Terrain_Integration:
         source2.vertical_datum = ELIPSOIDAL_DATUM
 
         # Manager with sources (first source has priority)
-        manager = Manager([source1, source2], cache_enabled=False)
+        manager = Manager([source1, source2])
 
         coord = TEST_LOCATIONS["las_vegas"]
         elevation = manager.elevation(coord)

@@ -28,8 +28,6 @@ Key Features:
 
 # Python Standard Libraries
 import logging
-import pickle
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -57,33 +55,19 @@ class Manager:
 
     Attributes:
         sources: List of elevation data sources (GeoTIFF, Flat, etc.)
-        cache_enabled: Whether to enable elevation result caching
         interpolation: Default interpolation method for elevation queries
         default_vertical_datum: Default vertical datum for output elevations
-        cache_file: Path to persistent cache file
-        elevation_cache: In-memory cache of elevation results
         coord_transformer: Coordinate transformation utility
     """
 
     sources: list[Base]
-    cache_enabled: bool = True
     interpolation: Interpolation_Method = Interpolation_Method.BILINEAR
     default_vertical_datum: VBase | None = None
-    cache_file: Path = field(default_factory=lambda: Path(tempfile.gettempdir()) / "terminus_core_python" / "elevation_cache.pkl")
-    elevation_cache: dict[str, Elevation_Point] = field(default_factory=dict)
     coord_transformer: Transformer = field(default_factory=Transformer)
 
     def __post_init__(self):
         """Initialize manager after dataclass creation."""
-        # Ensure cache directory exists
-        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Configure sources with manager settings
         self._configure_sources()
-
-        # Load cache if enabled
-        if self.cache_enabled and self.cache_file.exists():
-            self._load_cache()
 
     def _configure_sources(self):
         """Configure all sources with manager settings."""
@@ -92,13 +76,11 @@ class Manager:
                 source.interpolation = self.interpolation
 
     @classmethod
-    def create_default(cls, cache_enabled: bool = True,
-                      interpolation: Interpolation_Method = Interpolation_Method.BILINEAR,
+    def create_default(cls, interpolation: Interpolation_Method = Interpolation_Method.BILINEAR,
                       default_vertical_datum: VBase | None = None) -> 'Manager':
         """Create a default terrain manager with catalog sources.
 
         Args:
-            cache_enabled: Whether to enable elevation caching
             interpolation: Default interpolation method for queries
             default_vertical_datum: Default vertical datum for outputs
 
@@ -110,20 +92,18 @@ class Manager:
         """
         try:
             catalog = Catalog()
-            return cls([catalog], cache_enabled, interpolation, default_vertical_datum)
+            return cls([catalog], interpolation, default_vertical_datum)
         except Exception:
             raise ValueError("No terrain sources available. Please ensure GeoTIFF files are in the catalog directory.") from None
 
     @classmethod
     def create_catalog_only(cls, catalog_root: str | Path | None = None,
-                           cache_enabled: bool = True,
                            interpolation: Interpolation_Method = Interpolation_Method.BILINEAR,
                            default_vertical_datum: VBase | None = None) -> 'Manager':
         """Create a terrain manager with only catalog sources.
 
         Args:
             catalog_root: Path to catalog directory containing GeoTIFF files
-            cache_enabled: Whether to enable elevation caching
             interpolation: Default interpolation method for queries
             default_vertical_datum: Default vertical datum for outputs
 
@@ -136,7 +116,7 @@ class Manager:
         catalog = Catalog(catalog_root)
         if not catalog.source_paths:
             raise ValueError(f"No terrain sources found in catalog: {catalog.catalog_root}")
-        return cls([catalog], cache_enabled, interpolation, default_vertical_datum)
+        return cls([catalog], interpolation, default_vertical_datum)
 
     def add_local_dem(self, dem_file: str | Path, vertical_datum: VBase | None = None):
         """Add a local DEM file as a high-priority elevation source.
@@ -154,35 +134,6 @@ class Manager:
             self.sources.insert(0, local_source)  # Prioritize local DEM
         except Exception as e:
             logging.warning(f"Could not add local DEM {dem_file}: {e}")
-
-    @staticmethod
-    def _cache_key(coord: Coordinate) -> str:
-        """Generate consistent cache key for any coordinate type.
-
-        Args:
-            coord: Input coordinate of any type
-
-        Returns:
-            String cache key based on geographic coordinates
-        """
-        # Convert to geographic coordinates first
-        transformer = Transformer()
-
-        if coord.type() == Type.GEOGRAPHIC:
-            geo = coord
-        elif coord.type() == Type.UTM:
-            geo = transformer.utm_to_geo(coord)
-        elif coord.type() == Type.WEB_MERCATOR:
-            geo = transformer.web_mercator_to_geo(coord)
-        elif coord.type() == Type.UPS:
-            geo = transformer.ups_to_geo(coord)
-        elif coord.type() == Type.ECEF:
-            geo = transformer.ecef_to_geo(coord)
-        else:
-            # Other coordinate types - use unique identifier
-            return f"{coord.type().name}_{id(coord)}"
-
-        return f"{geo.latitude_deg:.6f},{geo.longitude_deg:.6f}"
 
     def _query_sources(self, coord: Geographic) -> Elevation_Point | None:
         """
@@ -245,26 +196,9 @@ class Manager:
         else:
             geo_coord = self.coord_transformer.convert(coord, Type.GEOGRAPHIC)
 
-        # Check cache first
-        cache_key = self._cache_key(geo_coord)
-
-        if self.cache_enabled and cache_key in self.elevation_cache:
-            cached_point = self.elevation_cache[cache_key]
-
-            # Convert to target datum if needed
-            target_datum = vertical_datum or self.default_vertical_datum
-            if target_datum and cached_point.vertical_datum != target_datum:
-                return cached_point.to_datum(target_datum)
-            return cached_point
-
         # Query sources
         point = self._query_sources(geo_coord)
         if point is not None:
-            # Cache the result
-            if self.cache_enabled:
-                self.elevation_cache[cache_key] = point
-                self._save_cache()
-
             # Convert to target datum if needed
             target_datum = vertical_datum or self.default_vertical_datum
             if target_datum and point.vertical_datum != target_datum:
@@ -289,52 +223,18 @@ class Manager:
         coord = Geographic(latitude, longitude)
         return self.elevation_point(coord, vertical_datum)
 
-    def clear_cache(self):
-        """Clear elevation cache from memory and disk."""
-        self.elevation_cache.clear()
-        if self.cache_file.exists():
-            self.cache_file.unlink()
-
-    def get_cache_stats(self) -> dict[str, Any]:
-        """Get comprehensive cache statistics.
+    def get_info(self) -> dict[str, Any]:
+        """Get information about manager configuration.
 
         Returns:
-            Dictionary containing cache statistics and manager configuration
+            Dictionary containing manager configuration
         """
         return {
-            'cached_points': len(self.elevation_cache),
-            'cache_file': str(self.cache_file),
-            'cache_size_mb': self.cache_file.stat().st_size / (1024 * 1024) if self.cache_file.exists() else 0,
-            'cache_enabled': self.cache_enabled,
             'sources': [source.name for source in self.sources],
             'num_sources': len(self.sources),
             'default_vertical_datum': self.default_vertical_datum.name if self.default_vertical_datum else None,
             'interpolation': self.interpolation.name
         }
-
-    def _load_cache(self):
-        """Load elevation cache from file."""
-        try:
-            with open(self.cache_file, 'rb') as f:
-                self.elevation_cache = pickle.load(f)
-        except Exception as e:
-            # Handle any pickle errors including class name changes
-            logging.warning(f"Could not load cache due to: {e}. Starting with empty cache.")
-            self.elevation_cache = {}
-            # Remove the problematic cache file
-            try:
-                self.cache_file.unlink()
-                logging.info("Removed problematic cache file")
-            except OSError:
-                pass
-
-    def _save_cache(self):
-        """Save elevation cache to file."""
-        try:
-            with open(self.cache_file, 'wb') as f:
-                pickle.dump(self.elevation_cache, f)
-        except (OSError, pickle.PickleError) as e:
-            logging.warning(f"Could not save elevation cache: {e}")
 
 
 def get_default_manager() -> Manager:

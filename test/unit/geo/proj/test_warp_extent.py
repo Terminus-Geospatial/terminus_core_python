@@ -16,7 +16,7 @@
 Unit tests for Warp_Extent
 """
 
-from tmns.geo.coord import Geographic, UTM
+from tmns.geo.coord import UTM, Geographic
 from tmns.geo.coord.crs import CRS
 from tmns.geo.proj import Warp_Extent
 
@@ -89,8 +89,8 @@ class TestWarpExtent:
     def test_compute_output_size_utm(self):
         """Test compute_output_size for UTM CRS."""
         # Create extent in UTM zone 11N (Bakersfield area)
-        utm_min = UTM.create(306805.0, 3912689.5, crs=CRS.utm_zone(11, 'N'))
-        utm_max = UTM.create(318803.3, 3923887.4, crs=CRS.utm_zone(11, 'N'))
+        UTM.create(306805.0, 3912689.5, crs=CRS.utm_zone(11, 'N'))
+        UTM.create(318803.3, 3923887.4, crs=CRS.utm_zone(11, 'N'))
         extent = Warp_Extent(
             min_point=Geographic.create(35.338802, -119.125804),
             max_point=Geographic.create(35.441959, -118.996342),

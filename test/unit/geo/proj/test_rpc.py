@@ -16,7 +16,6 @@
 Unit tests for RPC (Rational Polynomial Coefficients) projector
 """
 
-import json
 import numpy as np
 import pytest
 
@@ -213,7 +212,7 @@ class TestRPC:
         assert pixel_coords.shape[0] == geo_coords.shape[0]
 
         # Check with loose tolerance since RPC fitting is approximate
-        for i, (pixel, geo) in enumerate(self.linear_gcps):
+        for i, (pixel, _geo) in enumerate(self.linear_gcps):
             assert abs(pixel_coords[i, 0] - pixel.x_px) < 500.0
             assert abs(pixel_coords[i, 1] - pixel.y_px) < 500.0
 
@@ -286,7 +285,7 @@ class TestRPC:
         batch_results = self.projector.geographic_to_source_batch(geo_coords)
 
         # Compare results
-        for i, (single, batch) in enumerate(zip(single_results, batch_results)):
+        for _i, (single, batch) in enumerate(zip(single_results, batch_results, strict=False)):
             assert abs(single.x_px - batch[0]) < 1e-6
             assert abs(single.y_px - batch[1]) < 1e-6
 

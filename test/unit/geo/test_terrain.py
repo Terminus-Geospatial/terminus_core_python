@@ -75,7 +75,7 @@ def mock_catalog():
 def manager_with_mock_sources(mock_geotiff_source):
     """Manager with mocked elevation sources."""
     sources = [mock_geotiff_source]
-    return Manager(sources, cache_enabled=False)
+    return Manager(sources)
 
 
 @pytest.fixture
@@ -284,138 +284,70 @@ class Test_Terrain_Manager:
 
     def test_manager_creation(self, mock_geotiff_source):
         """Test creating terrain manager."""
-        sources = [mock_geotiff_source]
-        manager = Manager(sources, cache_enabled=False)
+        manager = Manager([mock_geotiff_source])
 
         assert len(manager.sources) == 1
-        assert not manager.cache_enabled
         assert manager.coord_transformer is not None
 
     def test_manager_creation_no_sources(self):
-        """Test that manager requires at least one source."""
-        # Manager should now accept empty sources list
+        """Test that manager accepts empty sources list."""
         manager = Manager([])
         assert len(manager.sources) == 0
 
     def test_elevation_meters(self, manager_with_mock_sources, sample_geographic_coord):
         """Test getting elevation from manager."""
-        manager = manager_with_mock_sources
-        coord = sample_geographic_coord
-
-        elevation = manager.elevation(coord)
+        elevation = manager_with_mock_sources.elevation(sample_geographic_coord)
         assert elevation == 100.5
 
     def test_elevation_point(self, manager_with_mock_sources, sample_geographic_coord):
         """Test getting elevation point from manager."""
-        manager = manager_with_mock_sources
-        coord = sample_geographic_coord
-
-        point = manager.elevation_point(coord)
+        point = manager_with_mock_sources.elevation_point(sample_geographic_coord)
         assert isinstance(point, Elevation_Point)
-        assert point.coord.latitude_deg == coord.latitude_deg
-        assert point.coord.longitude_deg == coord.longitude_deg
+        assert point.coord.latitude_deg == sample_geographic_coord.latitude_deg
+        assert point.coord.longitude_deg == sample_geographic_coord.longitude_deg
         assert point.source == "GeoTIFF (test.tif)"
-        assert point.coord.altitude_m == 100.5  # Should be updated by elevation source
+        assert point.coord.altitude_m == 100.5
 
     def test_elevation_meters_no_data(self, mock_geotiff_source):
         """Test handling when no elevation data is available."""
         mock_geotiff_source.elevation_meters.return_value = None
 
-        manager = Manager([mock_geotiff_source], cache_enabled=False)
-        coord = Geographic(40.7, -74.0)
-
-        elevation = manager.elevation(coord)
+        manager = Manager([mock_geotiff_source])
+        elevation = manager.elevation(Geographic(40.7, -74.0))
         assert elevation is None
-
-    def test_elevation_batch_removed(self, manager_with_mock_sources):
-        """Test that elevation_batch method has been removed."""
-        manager = manager_with_mock_sources
-
-        # Verify elevation_batch method doesn't exist
-        assert not hasattr(manager, 'elevation_batch')
-
-        # Verify that trying to access elevation_batch raises AttributeError
-        with pytest.raises(AttributeError):
-            _ = manager.elevation_batch
 
     def test_coordinate_conversion_in_elevation(self, manager_with_mock_sources):
         """Test that coordinates are properly converted for elevation queries."""
+        elevation = manager_with_mock_sources.elevation(Geographic(40.7, -74.0))
+        assert elevation == 100.5
+
+    def test_source_failure_falls_through(self, mock_geotiff_source):
+        """Test that a failing source is skipped and next source is tried."""
+        failing_source = Mock(spec=GeoTIFF)
+        failing_source.name = "Failing Source"
+        failing_source.elevation_meters.side_effect = RuntimeError("I/O error")
+        failing_source.vertical_datum = ELIPSOIDAL_DATUM
+
+        manager = Manager([failing_source, mock_geotiff_source])
+        elevation = manager.elevation(Geographic(40.7, -74.0))
+        assert elevation == 100.5
+
+    def test_get_info(self, manager_with_mock_sources):
+        """Test get_info returns manager configuration."""
+        info = manager_with_mock_sources.get_info()
+        assert 'sources' in info
+        assert 'num_sources' in info
+        assert 'interpolation' in info
+        assert info['num_sources'] == 1
+
+    def test_no_cache_attributes(self, manager_with_mock_sources):
+        """Verify cache-related attributes and methods no longer exist."""
         manager = manager_with_mock_sources
-
-        # Test with different coordinate types - defer UTM complexity for now
-        # TODO: Revisit UTM coordinate construction with explicit zone/hemisphere handling
-        coord = Geographic(40.7, -74.0)  # Use geographic for now
-        elevation = manager.elevation(coord)
-
-        # Should work with geographic coordinates
-        assert elevation == 100.5
-
-    def test_cache_operations(self, mock_geotiff_source, sample_geographic_coord):
-        """Test cache operations."""
-        manager = Manager([mock_geotiff_source], cache_enabled=True)
-        coord = sample_geographic_coord
-
-        # Test cache miss
-        elevation = manager.elevation(coord)
-        assert elevation == 100.5
-
-        # Test cache hit (should not call source again)
-        mock_geotiff_source.elevation_meters.reset_mock()
-        elevation = manager.elevation(coord)
-        assert elevation == 100.5
-        mock_geotiff_source.elevation_meters.assert_not_called()
-
-    def test_clear_cache(self, mock_geotiff_source, sample_geographic_coord):
-        """Test clearing cache."""
-        manager = Manager([mock_geotiff_source], cache_enabled=True)
-        coord = sample_geographic_coord
-
-        # Populate cache
-        manager.elevation(coord)
-
-        # Clear cache
-        manager.clear_cache()
-
-        # Verify cache is cleared by checking source gets called again
-        mock_geotiff_source.elevation_meters.reset_mock()
-        manager.elevation(coord)
-        mock_geotiff_source.elevation_meters.assert_called_once()
-
-    def test_get_cache_stats(self, mock_geotiff_source, sample_geographic_coord):
-        """Test getting cache statistics."""
-
-        # Test with cache disabled first
-        manager_no_cache = Manager([mock_geotiff_source], cache_enabled=False)
-        stats_no_cache = manager_no_cache.get_cache_stats()
-        assert stats_no_cache['cached_points'] == 0
-        assert stats_no_cache['cache_size_mb'] < 0.01  # Allow small file size
-        assert len(stats_no_cache['sources']) == 1
-
-        # Test with cache enabled
-        manager = Manager([mock_geotiff_source], cache_enabled=True)
-
-        # Get initial state
-        stats = manager.get_cache_stats()
-        initial_points = stats['cached_points']
-
-        # Populate cache with a new coordinate (not used before)
-        new_coord = Geographic(45.0, -75.0)  # Different from sample_geographic_coord
-        manager.elevation(new_coord)
-
-        # Check stats after cache miss
-        stats = manager.get_cache_stats()
-        assert stats['cached_points'] == initial_points + 1
-        assert stats['cache_size_mb'] >= 0
-        assert len(stats['sources']) == 1
-
-        # Cache hit with same coordinate
-        manager.elevation(new_coord)
-
-        # Check stats after cache hit (should be same cached_points)
-        stats = manager.get_cache_stats()
-        assert stats['cached_points'] == initial_points + 1
-        assert stats['cache_size_mb'] >= 0
-        assert len(stats['sources']) == 1
+        assert not hasattr(manager, 'cache_enabled')
+        assert not hasattr(manager, 'elevation_cache')
+        assert not hasattr(manager, 'cache_file')
+        assert not hasattr(manager, 'clear_cache')
+        assert not hasattr(manager, 'get_cache_stats')
 
 
 class Test_Convenience_Functions:

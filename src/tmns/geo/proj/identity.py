@@ -16,7 +16,8 @@
 Identity projector implementation
 """
 
-# Python Standard Libraries
+# Third-Party Libraries
+import numpy as np
 
 # Project Libraries
 from tmns.geo.coord import Geographic, Pixel

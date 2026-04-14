@@ -38,7 +38,6 @@ from tmns.geo.coord.epsg import Code, Manager
 
 if TYPE_CHECKING:
     from tmns.geo.coord import Geographic
-    from tmns.geo.coord.transformer import Transformer
 
 
 @dataclass

@@ -358,7 +358,7 @@ class TestAffine:
             rms = (dx ** 2 + dy ** 2) ** 0.5
             residuals.append(rms)
 
-        max_rms = max(residuals)
+        max(residuals)
         overall_rmse = (sum(r ** 2 for r in residuals) / len(residuals)) ** 0.5
 
         # Regression test: baseline RMSE with 10 GCPs is ~142 pixels

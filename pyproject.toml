@@ -11,7 +11,7 @@
 [project]
 
 name = "terminus_core"
-version = "0.1.6"
+version = "0.1.7"
 description = "Base structures for Terminus Python APIs."
 license = {file = "LICENSE"}
 readme = "README.md"

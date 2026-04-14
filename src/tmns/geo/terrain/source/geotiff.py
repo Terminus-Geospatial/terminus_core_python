@@ -53,8 +53,10 @@ class GeoTIFF(Base):
         super().__init__(f"GeoTIFF ({Path(file_path).name})", vertical_datum, interpolation)
 
         self.file_path = Path(file_path)
-        self.dataset = None
         self._transformer = None
+        self._data = None          # Full raster band loaded into RAM
+        self._transform = None     # Affine transform for pixel lookups
+        self._nodata = None
 
         # Validate file exists
         if not self.file_path.exists():
@@ -66,10 +68,13 @@ class GeoTIFF(Base):
             self.epsg_code = ds.crs.to_epsg()
 
     def _load_dataset(self):
-        """Lazy load the GeoTIFF raster dataset for pixel sampling."""
-        if self.dataset is None:
+        """Lazy load the full raster into RAM, then close the file handle."""
+        if self._data is None:
             try:
-                self.dataset = rasterio.open(self.file_path)
+                with rasterio.open(self.file_path) as ds:
+                    self._data = ds.read(1).astype(float)
+                    self._transform = ds.transform
+                    self._nodata = ds.nodata
                 logging.info(f"Loaded GeoTIFF: {self.file_path} (EPSG:{self.epsg_code})")
             except Exception as e:
                 logging.error(f"Failed to load GeoTIFF {self.file_path}: {e}")
@@ -117,33 +122,25 @@ class GeoTIFF(Base):
             transformed_coord = transformer.transform(coord, f"EPSG:{self.epsg_code}")
             x, y = transformed_coord.longitude_deg, transformed_coord.latitude_deg
 
-            # Sample elevation at the transformed coordinates
-            elevation_values = self.dataset.sample([(x, y)])
+            # Convert geographic coordinates to pixel row/col via affine transform
+            col, row = ~self._transform * (x, y)
+            row, col = int(row), int(col)
 
-            # Convert generator to list if needed
-            if hasattr(elevation_values, '__iter__') and not hasattr(elevation_values, '__len__'):
-                elevation_values = list(elevation_values)
-
-            if elevation_values is not None and len(elevation_values) > 0:
-                elevation_value = elevation_values[0]
-
-                # Check for nodata value
-                if self.dataset.nodata is not None and elevation_value == self.dataset.nodata:
-                    return None
-
-                # Handle numpy array conversion
-                if hasattr(elevation_value, 'item'):
-                    elevation = float(elevation_value.item())
-                else:
-                    elevation = float(elevation_value)
-
-                # Handle datum conversion if needed
-                if target_datum is not None and target_datum != self.vertical_datum:
-                    return self._convert_datum(elevation, target_datum, coord.latitude_deg, coord.longitude_deg)
-
-                return elevation
-            else:
+            # Bounds check
+            if row < 0 or row >= self._data.shape[0] or col < 0 or col >= self._data.shape[1]:
                 return None
+
+            elevation = float(self._data[row, col])
+
+            # Check for nodata
+            if self._nodata is not None and elevation == self._nodata:
+                return None
+
+            # Handle datum conversion if needed
+            if target_datum is not None and target_datum != self.vertical_datum:
+                return self._convert_datum(elevation, target_datum, coord.latitude_deg, coord.longitude_deg)
+
+            return elevation
 
         except Exception as e:
             logging.error(f"Error getting elevation from GeoTIFF: {e}")
@@ -163,20 +160,16 @@ class GeoTIFF(Base):
                 'bottom': self.bounds.bottom if self.bounds else None,
             },
             'resolution': {
-                'width': self.dataset.width if self.dataset else None,
-                'height': self.dataset.height if self.dataset else None,
-            } if self.dataset else None,
+                'rows': self._data.shape[0] if self._data is not None else None,
+                'cols': self._data.shape[1] if self._data is not None else None,
+            } if self._data is not None else None,
         })
         return info
 
     def close(self):
-        """Close the dataset to free resources."""
-        if self.dataset is not None:
-            self.dataset.close()
-            self.dataset = None
-
-    def __del__(self):
-        """Ensure dataset is closed when object is destroyed."""
-        self.close()
+        """Release the in-memory raster data."""
+        self._data = None
+        self._transform = None
+        self._nodata = None
 
 
