@@ -147,6 +147,18 @@ class Geographic:
         """
         return (self.longitude_deg, self.latitude_deg, self.altitude_m or 0.0)
 
+    def to_leaflet(self) -> list[float]:
+        """Convert to Leaflet/folium [lat, lon] list.
+
+        Leaflet and folium use latitude-first ordering, which is the reverse
+        of GeoJSON / ``to_tuple()``.  Use this whenever passing coordinates
+        to a folium constructor or a JavaScript map call.
+
+        Returns:
+            ``[latitude_deg, longitude_deg]``
+        """
+        return [self.latitude_deg, self.longitude_deg]
+
     def copy(self) -> Geographic:
         """Create an independent copy of this geographic coordinate.
 
