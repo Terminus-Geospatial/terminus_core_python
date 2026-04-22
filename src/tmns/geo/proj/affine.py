@@ -132,6 +132,10 @@ class Affine(Projector):
         if 'image_bounds' in kwargs:
             self.set_source_image_attributes(bounds=kwargs['image_bounds'])
 
+        # Store image size if provided
+        if 'image_size' in kwargs:
+            self._image_size = tuple(kwargs['image_size'])
+
     @override
     def to_params(self) -> np.ndarray:
         """Extract the 6 optimizable elements of the affine matrix.
@@ -177,10 +181,54 @@ class Affine(Projector):
 
         # Copy image size and bounds if available
         new_affine._image_size = self._image_size
-        if hasattr(self, '_source_image_attributes'):
-            new_affine._source_image_attributes = self._source_image_attributes
+        if hasattr(self, '_source_image_attrs'):
+            new_affine._source_image_attrs = self._source_image_attrs.copy()
 
         return new_affine
+
+    @override
+    def get_param_bounds(self, bounds_px: float = 50.0) -> list[tuple[float, float]]:
+        """Compute differential-evolution bounds for the 6 Affine parameters.
+
+        Projects the 4 image corners to geographic space and derives per-coefficient
+        bounds scaled by bounds_px (in pixels).
+
+        Args:
+            bounds_px: Translation search radius in pixels.
+
+        Returns:
+            List of (min, max) bounds for [m00, m01, m02, m10, m11, m12].
+
+        Raises:
+            ValueError: If image_size is not set.
+        """
+        if self._image_size is None:
+            raise ValueError("Affine model has no image_size — cannot derive param bounds.")
+
+        params = self.to_params()
+        w, h = self._image_size
+
+        corners = [
+            Pixel(x_px=0,     y_px=0),
+            Pixel(x_px=w - 1, y_px=0),
+            Pixel(x_px=w - 1, y_px=h - 1),
+            Pixel(x_px=0,     y_px=h - 1),
+        ]
+        geos = [self.pixel_to_world(c) for c in corners]
+        lons = [g.longitude_deg for g in geos]
+        lats = [g.latitude_deg  for g in geos]
+
+        d_lon_per_px = (max(lons) - min(lons)) / w
+        d_lat_per_px = (max(lats) - min(lats)) / h
+
+        return [
+            (params[0] - d_lon_per_px * 0.2, params[0] + d_lon_per_px * 0.2),                # m00
+            (params[1] - d_lon_per_px * 0.2, params[1] + d_lon_per_px * 0.2),                # m01
+            (min(lons) - d_lon_per_px * bounds_px, max(lons) + d_lon_per_px * bounds_px),    # m02 (tx)
+            (params[3] - d_lat_per_px * 0.2, params[3] + d_lat_per_px * 0.2),                # m10
+            (params[4] - d_lat_per_px * 0.2, params[4] + d_lat_per_px * 0.2),                # m11
+            (min(lats) - d_lat_per_px * bounds_px, max(lats) + d_lat_per_px * bounds_px),    # m12 (ty)
+        ]
 
     @property
     @override
@@ -299,7 +347,7 @@ class Affine(Projector):
         Transforms image_bounds corners to geographic coordinates.
         """
         image_corners = self.image_bounds()
-        return [self.source_to_geographic(pixel) for pixel in image_corners]
+        return [self.pixel_to_world(pixel) for pixel in image_corners]
 
     def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,
                                    src_w: int, src_h: int) -> tuple[np.ndarray, np.ndarray]:

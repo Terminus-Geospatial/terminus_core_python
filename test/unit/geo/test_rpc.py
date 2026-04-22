@@ -564,3 +564,14 @@ class TestRPC:
         center_geo = self.projector.pixel_to_world(Pixel(2048.0, 2048.0))
         assert abs(center_geo.latitude_deg - lat_center) < 0.01
         assert abs(center_geo.longitude_deg - lon_center) < 0.01
+
+    def test_get_param_bounds_not_implemented(self):
+        """Verify get_param_bounds raises NotImplementedError for RPC.
+
+        RPC parameter optimization is not yet implemented. This test ensures
+        the stub correctly raises NotImplementedError to prevent accidental use.
+        """
+        self.projector.update_model(rpc_coeffs=self.rpc_coeffs)
+
+        with pytest.raises(NotImplementedError, match="RPC parameter optimization is not yet implemented"):
+            self.projector.get_param_bounds()

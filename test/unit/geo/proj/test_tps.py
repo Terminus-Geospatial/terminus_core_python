@@ -500,3 +500,21 @@ class TestTPS:
             # Should follow linear pattern approximately (lat = 3*y, lon = 2*x)
             assert abs(geo.latitude_deg - 3.0 * test_y) < 1e-6
             assert abs(geo.longitude_deg - 2.0 * test_x) < 1e-6
+
+    def test_get_param_bounds_not_implemented(self):
+        """Verify get_param_bounds raises NotImplementedError for TPS.
+
+        TPS is interpolatory and does not have a compact parameter vector.
+        TPS refinement is done via re-solving from GCPs, not direct parameter optimization.
+        This test ensures the stub correctly raises NotImplementedError.
+        """
+        test_control_points = [
+            (Pixel(0.0, 0.0), Geographic(35.0, -118.0)),
+            (Pixel(960.0, 0.0), Geographic(35.0, -117.0)),
+            (Pixel(0.0, 540.0), Geographic(35.5, -118.0)),
+            (Pixel(960.0, 540.0), Geographic(35.5, -117.0)),
+        ]
+        self.projector.update_model(control_points=test_control_points)
+
+        with pytest.raises(NotImplementedError, match="TPS does not support parameter-based optimization"):
+            self.projector.get_param_bounds()

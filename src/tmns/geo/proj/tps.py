@@ -474,6 +474,24 @@ class TPS(Projector):
         """Not supported for TPS — raises NotImplementedError."""
         raise NotImplementedError("TPS does not support parameter-based construction")
 
+    @override
+    def get_param_bounds(self, bounds_px: float = 50.0) -> list[tuple[float, float]]:
+        """Compute parameter bounds for TPS optimization.
+
+        TPS is interpolatory and does not have a compact parameter vector.
+        TPS refinement is done via re-solving from GCPs, not direct parameter optimization.
+
+        Args:
+            bounds_px: Translation search radius in pixels (unused for TPS).
+
+        Returns:
+            Empty list (TPS does not use parameter-based optimization).
+
+        Raises:
+            NotImplementedError: TPS does not support parameter-based optimization.
+        """
+        raise NotImplementedError("TPS does not support parameter-based optimization. Use GCP-based refinement instead. See TODO-TPS in auto-gcp-solver.md.")
+
     @property
     @override
     def transformation_type(self) -> Transformation_Type:
@@ -566,7 +584,7 @@ class TPS(Projector):
         Transforms image_bounds corners to geographic coordinates.
         """
         image_corners = self.image_bounds()
-        return [self.source_to_geographic(pixel) for pixel in image_corners]
+        return [self.pixel_to_world(pixel) for pixel in image_corners]
 
     @override
     def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,

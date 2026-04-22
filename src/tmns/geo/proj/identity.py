@@ -59,6 +59,23 @@ class Identity(Projector):
         """Not supported for Identity — raises NotImplementedError."""
         raise NotImplementedError("Identity does not support parameter-based construction")
 
+    @override
+    def get_param_bounds(self, bounds_px: float = 50.0) -> list[tuple[float, float]]:
+        """Compute parameter bounds for Identity optimization.
+
+        Identity is a no-op transformation and does not support parameter optimization.
+
+        Args:
+            bounds_px: Translation search radius in pixels (unused for Identity).
+
+        Returns:
+            Empty list (Identity does not use parameter-based optimization).
+
+        Raises:
+            NotImplementedError: Identity does not support parameter-based optimization.
+        """
+        raise NotImplementedError("Identity does not support parameter-based optimization.")
+
     @property
     @override
     def transformation_type(self) -> Transformation_Type:
@@ -89,7 +106,7 @@ class Identity(Projector):
         Transforms image_bounds corners to geographic coordinates.
         """
         image_corners = self.image_bounds()
-        return [self.source_to_geographic(pixel) for pixel in image_corners]
+        return [self.pixel_to_world(pixel) for pixel in image_corners]
 
     @property
     @override

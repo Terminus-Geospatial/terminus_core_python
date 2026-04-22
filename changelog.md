@@ -5,6 +5,14 @@ All notable changes to terminus-core-python will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] - 2026-10-14
+
+### Added
+- **Projector parameter bounds**: Added `get_param_bounds(bounds_px: float)` abstract method to Projector base class for projector-agnostic parameter bounds extraction
+- **Affine parameter bounds**: Implemented `get_param_bounds()` in Affine to compute differential-evolution bounds for the 6 Affine parameters from image corners and geographic extent
+- **Projector bounds tests**: Added tests for `get_param_bounds()` in Affine (functional), RPC/TPS/Identity (NotImplementedError)
+
+
 ## [0.1.8] - 2026-04-21
 
 ### Changed

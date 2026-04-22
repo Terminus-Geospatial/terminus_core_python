@@ -116,8 +116,6 @@ class RPC(Projector):
         if not self._coeffs:
             raise ValueError("RPC coefficients not set. Call update_model() first.")
 
-        import numpy as np
-
         lons = geo_coords[:, 0]
         lats = geo_coords[:, 1]
 
@@ -247,7 +245,28 @@ class RPC(Projector):
             'lon_scale': self._scales['lon_scale'],
         })
 
+        # Copy source image attributes
+        new_rpc._source_image_attrs = self._source_image_attrs.copy()
+
         return new_rpc
+
+    @override
+    def get_param_bounds(self, bounds_px: float = 50.0) -> list[tuple[float, float]]:
+        """Compute parameter bounds for RPC optimization.
+
+        RPC optimization is not yet implemented. This stub returns wide bounds
+        around the current coefficients as a placeholder.
+
+        Args:
+            bounds_px: Translation search radius in pixels (unused for RPC).
+
+        Returns:
+            List of (min, max) bounds for each parameter in to_params().
+
+        Raises:
+            NotImplementedError: RPC parameter optimization is not yet implemented.
+        """
+        raise NotImplementedError("RPC parameter optimization is not yet implemented. See TODO-RPC in auto-gcp-solver.md.")
 
     def _compute_polynomial(self, x: float, y: float, coeffs: list[float]) -> float:
         """Compute polynomial value for normalized coordinates using GeoTIFF RPC00B term order.
@@ -294,8 +313,6 @@ class RPC(Projector):
         Returns:
             Array of polynomial values
         """
-        import numpy as np
-
         # Ensure we have enough coefficients
         if len(coeffs) < 9:
             coeffs = coeffs + [0.0] * (9 - len(coeffs))
@@ -486,7 +503,7 @@ class RPC(Projector):
         Transforms image_bounds corners to geographic coordinates.
         """
         image_corners = self.image_bounds()
-        return [self.source_to_geographic(pixel) for pixel in image_corners]
+        return [self.pixel_to_world(pixel) for pixel in image_corners]
 
     @override
     def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,

@@ -150,6 +150,18 @@ class Projector(ABC):
         pass
 
     @abstractmethod
+    def get_param_bounds(self, bounds_px: float = 50.0) -> list[tuple[float, float]]:
+        """Compute parameter bounds for optimization.
+
+        Args:
+            bounds_px: Translation search radius in pixels.
+
+        Returns:
+            List of (min, max) bounds for each parameter in to_params().
+        """
+        pass
+
+    @abstractmethod
     def serialize_model_data(self) -> dict:
         """Serialize the transformation model data to a dict for persistence.
 
@@ -240,7 +252,7 @@ class Projector(ABC):
             Pixel(x_px=src_w-1, y_px=src_h-1),
             Pixel(x_px=0,       y_px=src_h-1),
         ]
-        corners_geo = [self.source_to_geographic(p) for p in corners_px]
+        corners_geo = [self.pixel_to_world(p) for p in corners_px]
         lons = [g.longitude_deg for g in corners_geo]
         lats = [g.latitude_deg  for g in corners_geo]
         min_point = Geographic.create(min(lats), min(lons))

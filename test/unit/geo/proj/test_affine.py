@@ -365,3 +365,61 @@ class TestAffine:
         # With all 26 GCPs, RMSE is 293 pixels (model tester result)
         # This documents the baseline affine performance for comparison
         assert abs(overall_rmse - 142.0) < 10.0, f"RMSE regression test failed: {overall_rmse:.2f} pixels"
+
+    def test_get_param_bounds(self):
+        """Verify get_param_bounds returns correct bounds for Affine parameters."""
+        # Set up a simple affine model with image size
+        src_width, src_height = 1920, 1080
+        scale_lon = 360.0 / src_width
+        scale_lat = 180.0 / src_height
+        matrix = np.array([
+            [scale_lon, 0.0, -180.0],
+            [0.0, scale_lat, -90.0],
+            [0.0, 0.0, 1.0]
+        ])
+
+        self.projector.update_model(transform_matrix=matrix, image_size=(src_width, src_height))
+
+        # Get bounds with default bounds_px
+        bounds = self.projector.get_param_bounds(bounds_px=50.0)
+
+        # Should return 6 bounds for [m00, m01, m02, m10, m11, m12]
+        assert len(bounds) == 6
+
+        # Each bound should be a tuple of (min, max)
+        for bound in bounds:
+            assert isinstance(bound, tuple)
+            assert len(bound) == 2
+            assert bound[0] < bound[1]
+
+        # Hard-coded expected values for this specific matrix and image size
+        # scale_lon = 360/1920 = 0.1875, scale_lat = 180/1080 = 0.1667
+        # params = [0.1875, 0.0, -180.0, 0.0, 0.1667, -90.0]
+        # d_lon_per_px = 0.1875, d_lat_per_px = 0.1667
+        # Translation bounds: min(lons) ± bounds_px * d_per_px, max(lons) ± bounds_px * d_per_px
+        # lons range: [-180, 180], so tx bounds: [-180 - 9.375, 180 + 9.375] ≈ [-189.375, 189.18]
+        # lats range: [-90, 90], so ty bounds: [-90 - 8.333, 90 + 8.333] ≈ [-98.333, 98.16]
+        expected_bounds = [
+            (0.15, 0.225),   # m00: scale_lon ± 20%
+            (-0.0375, 0.0375), # m01: 0 ± 20%
+            (-189.375, 189.18),  # m02 (tx): centered on lon range ± 9.375
+            (-0.0333, 0.0333), # m10: 0 ± 20%
+            (0.1333, 0.2),    # m11: scale_lat ± 20%
+            (-98.333, 98.16),    # m12 (ty): centered on lat range ± 8.333
+        ]
+
+        for i, (actual, expected) in enumerate(zip(bounds, expected_bounds)):
+            assert abs(actual[0] - expected[0]) < 0.1, f"Bound {i} min mismatch: {actual[0]} vs {expected[0]}"
+            assert abs(actual[1] - expected[1]) < 0.1, f"Bound {i} max mismatch: {actual[1]} vs {expected[1]}"
+
+    def test_get_param_bounds_requires_image_size(self):
+        """Verify get_param_bounds raises ValueError if image_size is not set."""
+        matrix = [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0]
+        ]
+        self.projector.update_model(transform_matrix=matrix)  # No image_size
+
+        with pytest.raises(ValueError, match="image_size"):
+            self.projector.get_param_bounds()
