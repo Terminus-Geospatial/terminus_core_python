@@ -33,6 +33,7 @@ coordinates to improve numerical stability.
 """
 
 # Python Standard Libraries
+from typing import Self, override
 
 # Third-Party Libraries
 import numpy as np
@@ -45,14 +46,17 @@ from tmns.geo.proj.base import Projector, Transformation_Type
 class RPC(Projector):
     """Rational Polynomial Coefficients (RPC) projector for satellite imagery."""
 
+    MIN_GCPS = 9  # Minimum GCPs required for simplified RPC (9-term polynomial)
+
     def __init__(self):
         super().__init__()
         self._coeffs: dict[str, list[float]] = {}
         self._offsets: dict[str, float] = {}
         self._scales: dict[str, float] = {}
 
-    def source_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform image pixel coordinates to geographic coordinates using RPC."""
+    @override
+    def pixel_to_world(self, pixel: Pixel) -> Geographic:
+        """Transform image pixel coordinates to world (geographic) coordinates using RPC."""
         if not self._coeffs:
             raise ValueError("RPC coefficients not set. Call update_model() first.")
 
@@ -75,8 +79,9 @@ class RPC(Projector):
 
         return Geographic(latitude_deg=latitude, longitude_deg=longitude)
 
-    def geographic_to_source(self, geo: Geographic) -> Pixel:
-        """Transform geographic coordinates to image pixel coordinates using RPC."""
+    @override
+    def world_to_pixel(self, geo: Geographic) -> Pixel:
+        """Transform world (geographic) coordinates to image pixel coordinates using RPC."""
         if not self._coeffs:
             raise ValueError("RPC coefficients not set. Call update_model() first.")
 
@@ -99,8 +104,8 @@ class RPC(Projector):
 
         return Pixel(x_px=sample, y_px=line)
 
-    def geographic_to_source_batch(self, geo_coords: np.ndarray) -> np.ndarray:
-        """Vectorized version of geographic_to_source for batch processing.
+    def world_to_pixel_batch(self, geo_coords: np.ndarray) -> np.ndarray:
+        """Vectorized version of world_to_pixel for batch processing.
 
         Args:
             geo_coords: (N, 2) array of [longitude, latitude] coordinates
@@ -133,6 +138,7 @@ class RPC(Projector):
         return np.column_stack([sample, line])
 
 
+    @override
     def update_model(self, **kwargs) -> None:
         """Update RPC coefficients and normalization parameters."""
         if 'rpc_coeffs' not in kwargs:
@@ -168,6 +174,80 @@ class RPC(Projector):
             'lon_scale': rpc_data['lon_scale'],
             'height_scale': rpc_data.get('height_scale', 1.0),
         }
+
+    @override
+    def to_params(self) -> np.ndarray:
+        """Extract optimizable parameters from the RPC coefficients.
+
+        Returns:
+            1D array of 16 parameters: first 4 coefficients (excluding constant)
+            from each of the 4 polynomials [line_num[1:4], line_den[1:4],
+            samp_num[1:4], samp_den[1:4]].
+        """
+        if not self._coeffs:
+            raise ValueError("RPC coefficients not set. Call update_model() first.")
+
+        # Extract first 4 coefficients (skip constant term) from each of the 4 polynomials
+        params = []
+        for poly_name in ['line_num', 'line_den', 'samp_num', 'samp_den']:
+            coeffs = self._coeffs[poly_name]
+            for i in range(1, 5):
+                if i < len(coeffs):
+                    params.append(coeffs[i])
+
+        return np.array(params)
+
+    @override
+    def from_params(self, params: np.ndarray) -> Self:
+        """Create a new RPC instance with modified parameters.
+
+        Args:
+            params: 1D array of 16 parameters (4 coefficients × 4 polynomials)
+
+        Returns:
+            New RPC instance with the specified coefficients
+        """
+        if len(params) != 16:
+            raise ValueError(f"Expected 16 parameters for RPC, got {len(params)}")
+
+        # Create new RPC instance
+        new_rpc = RPC()
+
+        # Reconstruct coefficient dictionaries
+        new_coeffs = {}
+        param_idx = 0
+
+        for poly_name in ['line_num', 'line_den', 'samp_num', 'samp_den']:
+            original = self._coeffs[poly_name]
+            # Keep constant term, replace next 4 with optimized parameters
+            new_poly = [original[0]]  # Keep constant term
+            for i in range(1, 5):  # Replace 4 coefficients
+                if param_idx < len(params):
+                    new_poly.append(params[param_idx])
+                    param_idx += 1
+                else:
+                    new_poly.append(original[i])  # Fallback to original
+            # Keep remaining coefficients unchanged
+            new_poly.extend(original[5:])
+            new_coeffs[poly_name] = new_poly
+
+        # Copy normalization parameters unchanged
+        new_rpc.update_model(rpc_coeffs={
+            'line_num_coefs': new_coeffs['line_num'],
+            'line_den_coefs': new_coeffs['line_den'],
+            'samp_num_coefs': new_coeffs['samp_num'],
+            'samp_den_coefs': new_coeffs['samp_den'],
+            'line_offset': self._offsets['line_off'],
+            'samp_offset': self._offsets['samp_off'],
+            'lat_offset': self._offsets['lat_off'],
+            'lon_offset': self._offsets['lon_off'],
+            'line_scale': self._scales['line_scale'],
+            'samp_scale': self._scales['samp_scale'],
+            'lat_scale': self._scales['lat_scale'],
+            'lon_scale': self._scales['lon_scale'],
+        })
+
+        return new_rpc
 
     def _compute_polynomial(self, x: float, y: float, coeffs: list[float]) -> float:
         """Compute polynomial value for normalized coordinates using GeoTIFF RPC00B term order.
@@ -333,13 +413,16 @@ class RPC(Projector):
         return [0.0] * 20  # 20 coefficients for full RPC polynomial
 
     @property
+    @override
     def transformation_type(self) -> Transformation_Type:
         return Transformation_Type.RPC
 
     @property
+    @override
     def is_identity(self) -> bool:
         return False
 
+    @override
     def serialize_model_data(self) -> dict:
         """Serialize the RPC model data to a dict.
 
@@ -355,6 +438,7 @@ class RPC(Projector):
             'scales': self._scales,
         }
 
+    @override
     def deserialize_model_data(self, data: dict) -> None:
         """Deserialize RPC model data from a dict.
 
@@ -368,6 +452,7 @@ class RPC(Projector):
         self._offsets = data['offsets']
         self._scales = data['scales']
 
+    @override
     def image_bounds(self) -> list[Pixel]:
         """Return image bounding box as 4 corner pixels.
 
@@ -394,6 +479,7 @@ class RPC(Projector):
             Pixel(x_px=min_x, y_px=max_y),  # Bottom-left
         ]
 
+    @override
     def geographic_bounds(self) -> list[Geographic]:
         """Return geographic bounding polygon vertices.
 
@@ -402,6 +488,7 @@ class RPC(Projector):
         image_corners = self.image_bounds()
         return [self.source_to_geographic(pixel) for pixel in image_corners]
 
+    @override
     def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,
                                    src_w: int, src_h: int) -> tuple[np.ndarray, np.ndarray]:
         """Compute remap coordinates for RPC transformation.

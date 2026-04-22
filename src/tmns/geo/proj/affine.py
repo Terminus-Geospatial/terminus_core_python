@@ -17,6 +17,7 @@ Affine projector implementation
 """
 
 # Python Standard Libraries
+from typing import Self, override
 
 # Third-Party Libraries
 import numpy as np
@@ -46,13 +47,17 @@ class Affine(Projector):
     - **From GCPs**: ``solve_from_gcps(gcps)`` fits M via least squares.
     """
 
+    MIN_GCPS = 3  # Minimum GCPs required for affine transform
+
     def __init__(self):
         super().__init__()
         self._transform_matrix: np.ndarray | None = None
         self._inverse_matrix: np.ndarray | None = None
+        self._image_size: tuple[int, int] | None = None  # (width, height)
 
-    def source_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform a source image pixel to geographic coordinates.
+    @override
+    def pixel_to_world(self, pixel: Pixel) -> Geographic:
+        """Transform a source image pixel to world (geographic) coordinates.
 
         Applies ``M @ [x, y, 1]^T`` and maps result[0] → longitude,
         result[1] → latitude.
@@ -61,7 +66,7 @@ class Affine(Projector):
             pixel: Source image pixel coordinates.
 
         Returns:
-            Geographic coordinates (lat, lon).
+            World (geographic) coordinates (lat, lon).
 
         Raises:
             ValueError: If ``update_model`` has not been called.
@@ -74,8 +79,9 @@ class Affine(Projector):
         result = self._transform_matrix @ p
         return Geographic(latitude_deg=result[1], longitude_deg=result[0])
 
-    def geographic_to_source(self, geo: Geographic) -> Pixel:
-        """Transform geographic coordinates to source image pixel.
+    @override
+    def world_to_pixel(self, geo: Geographic) -> Pixel:
+        """Transform world (geographic) coordinates to source image pixel.
 
         Applies ``M^-1 @ [lon, lat, 1]^T`` and maps result[0] → x,
         result[1] → y.
@@ -98,6 +104,7 @@ class Affine(Projector):
         return Pixel(x_px=result[0], y_px=result[1])
 
 
+    @override
     def update_model(self, **kwargs) -> None:
         """Set the affine transformation matrix.
 
@@ -125,34 +132,89 @@ class Affine(Projector):
         if 'image_bounds' in kwargs:
             self.set_source_image_attributes(bounds=kwargs['image_bounds'])
 
+    @override
+    def to_params(self) -> np.ndarray:
+        """Extract the 6 optimizable elements of the affine matrix.
+
+        Returns:
+            1D array [m00, m01, m02, m10, m11, m12] (first two rows of the matrix).
+        """
+        if self._transform_matrix is None:
+            raise ValueError("Transform matrix not set. Call update_model() first.")
+
+        return np.array([
+            self._transform_matrix[0, 0],  # m00 (scale_x)
+            self._transform_matrix[0, 1],  # m01 (shear_xy)
+            self._transform_matrix[0, 2],  # m02 (tx)
+            self._transform_matrix[1, 0],  # m10 (shear_yx)
+            self._transform_matrix[1, 1],  # m11 (scale_y)
+            self._transform_matrix[1, 2],  # m12 (ty)
+        ])
+
+    @override
+    def from_params(self, params: np.ndarray) -> Self:
+        """Create a new Affine instance with modified parameters.
+
+        Args:
+            params: 1D array of 6 parameters [m00, m01, m02, m10, m11, m12]
+
+        Returns:
+            New Affine instance with the specified transform matrix
+        """
+        if len(params) != 6:
+            raise ValueError(f"Expected 6 parameters for Affine, got {len(params)}")
+
+        # Reconstruct 3x3 matrix from parameters
+        new_matrix = np.array([
+            [params[0], params[1], params[2]],  # [m00, m01, m02]
+            [params[3], params[4], params[5]],  # [m10, m11, m12]
+            [0.0, 0.0, 1.0]                     # Fixed bottom row
+        ])
+
+        # Create new affine model
+        new_affine = Affine()
+        new_affine.update_model(transform_matrix=new_matrix)
+
+        # Copy image size and bounds if available
+        new_affine._image_size = self._image_size
+        if hasattr(self, '_source_image_attributes'):
+            new_affine._source_image_attributes = self._source_image_attributes
+
+        return new_affine
+
     @property
+    @override
     def transformation_type(self) -> Transformation_Type:
         return Transformation_Type.AFFINE
 
     @property
+    @override
     def is_identity(self) -> bool:
         return False
 
+    @override
     def serialize_model_data(self) -> dict:
         """Serialize the affine transformation matrices to a dict.
 
         Returns:
-            Dict with 'transform_matrix' and 'inverse_matrix' as lists.
+            Dict with 'transform_matrix', 'inverse_matrix', and 'image_size' as lists.
         """
         if self._transform_matrix is None:
             raise ValueError("Transform matrix not set. Cannot serialize.")
 
         return {
             'transform_matrix': self._transform_matrix.tolist(),
-            'inverse_matrix': self._inverse_matrix.tolist() if self._inverse_matrix is not None else None
+            'inverse_matrix': self._inverse_matrix.tolist() if self._inverse_matrix is not None else None,
+            'image_size': list(self._image_size) if self._image_size is not None else None,
         }
 
+    @override
     def deserialize_model_data(self, data: dict) -> None:
         """Deserialize affine transformation matrices from a dict.
 
         Args:
             data: Dict with 'transform_matrix' and optionally 'inverse_matrix',
-                  or old format with nested 'affine_data' structure.
+                  'image_size', or old format with nested 'affine_data' structure.
         """
         # Handle old sidecar format with nested affine_data
         if 'affine_data' in data:
@@ -171,6 +233,9 @@ class Affine(Projector):
                 self._inverse_matrix = np.linalg.inv(transform_matrix)
             except np.linalg.LinAlgError:
                 self._inverse_matrix = None
+
+        if 'image_size' in data and data['image_size'] is not None:
+            self._image_size = tuple(data['image_size'])
 
     def solve_from_gcps(self, gcps: list[tuple[Pixel, Geographic]]) -> None:
         """Fit affine transformation matrix from Ground Control Points.

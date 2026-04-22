@@ -40,11 +40,11 @@ class TestProjector_Integration:
         tolerance = 1e-10
         for geo in test_coords:
             # Geographic to pixel
-            pixel = projector.geographic_to_source(geo)
+            pixel = projector.world_to_pixel(geo)
             assert isinstance(pixel, Pixel)
 
             # Pixel back to geographic
-            geo_result = projector.source_to_geographic(pixel)
+            geo_result = projector.pixel_to_world(pixel)
             assert isinstance(geo_result, Geographic)
 
             # Check roundtrip precision
@@ -74,7 +74,7 @@ class TestProjector_Integration:
 
         # Pixel(35, -80): lon = 35.01, lat = -80.01 (valid geographic output)
         test_pixel = Pixel(x_px=35.0, y_px=-80.0)
-        geo = projector.source_to_geographic(test_pixel)
+        geo = projector.pixel_to_world(test_pixel)
 
         assert abs(geo.longitude_deg - 35.01) < 1e-6
         assert abs(geo.latitude_deg - (-80.01)) < 1e-6
@@ -93,8 +93,8 @@ class TestProjector_Integration:
 
         # Test roundtrip: pixel -> geo -> pixel
         test_pixel = Pixel(x_px=10.0, y_px=20.0)
-        geo = projector.source_to_geographic(test_pixel)
-        result_pixel = projector.geographic_to_source(geo)
+        geo = projector.pixel_to_world(test_pixel)
+        result_pixel = projector.world_to_pixel(geo)
 
         # Should be close to original (allowing for transformation)
         tolerance = 1e-6

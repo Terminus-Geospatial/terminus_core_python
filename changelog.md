@@ -5,7 +5,16 @@ All notable changes to terminus-core-python will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.7] - 2026-04-13
+## [0.1.8] - 2026-04-21
+
+### Changed
+- **Projector API renaming**: Renamed transformation methods for clarity
+  - `geographic_to_source()` → `world_to_pixel()` (world coords → pixel coords)
+  - `source_to_geographic()` → `pixel_to_world()` (pixel coords → world coords)
+  - Affects all projector implementations: `Affine`, `TPS`, `RPC`, `Identity`
+- **GCP simplification**: Removed GUI-specific fields from core `GCP` class.
+
+## [0.1.7] - 2026-04-21
 
 ### Changed
 * **`GeoTIFF` source**: Full raster band loaded into numpy array on first query, file handle closed immediately — all subsequent lookups are pure array indexing with no I/O

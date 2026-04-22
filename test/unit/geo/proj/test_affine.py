@@ -65,9 +65,9 @@ class TestAffine:
         assert self.projector._inverse_matrix is not None
 
     def test_uninitialized_model_raises_error(self):
-        """Verify source_to_geographic raises before update_model is called."""
+        """Verify pixel_to_world raises before update_model is called."""
         with pytest.raises(ValueError, match="Transform matrix not set"):
-            self.projector.source_to_geographic(Pixel(x_px=0, y_px=0))
+            self.projector.pixel_to_world(Pixel(x_px=0, y_px=0))
 
     def test_translation_transformation(self):
         """Verify forward and inverse for a pure translation matrix.
@@ -76,15 +76,15 @@ class TestAffine:
         """
         self.projector.update_model(transform_matrix=self.translation_matrix)
 
-        # Test source to geographic - use valid coordinate ranges
+        # Test pixel to world - use valid coordinate ranges
         pixel = Pixel(x_px=35.0, y_px=-80.0)  # Use valid latitude range
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
 
         assert abs(geo.latitude_deg - (-80.01)) < 1e-10  # y: -80 + (-0.01) = -80.01
         assert abs(geo.longitude_deg - 35.01) < 1e-10  # x: 35 + 0.01 = 35.01
 
         # Test inverse transformation
-        result_pixel = self.projector.geographic_to_source(geo)
+        result_pixel = self.projector.world_to_pixel(geo)
         assert result_pixel.x_px == 35.0
         assert result_pixel.y_px == -80.0
 
@@ -95,15 +95,15 @@ class TestAffine:
         """
         self.projector.update_model(transform_matrix=self.scaling_matrix)
 
-        # Test source to geographic - use small coordinates to stay in range
+        # Test pixel to world - use small coordinates to stay in range
         pixel = Pixel(x_px=30.0, y_px=-50.0)  # Use valid range
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
 
         assert geo.latitude_deg == -45.0  # y: -50 * 0.9 = -45.0
         assert geo.longitude_deg == 33.0  # x: 30 * 1.1 = 33.0
 
         # Test inverse transformation
-        result_pixel = self.projector.geographic_to_source(geo)
+        result_pixel = self.projector.world_to_pixel(geo)
         assert result_pixel.x_px == 30.0
         assert result_pixel.y_px == -50.0
 
@@ -122,8 +122,8 @@ class TestAffine:
 
         # Test roundtrip transformation with small coordinates
         original_pixel = Pixel(x_px=35.0, y_px=-50.0)  # Use valid coordinates
-        geo = self.projector.source_to_geographic(original_pixel)
-        result_pixel = self.projector.geographic_to_source(geo)
+        geo = self.projector.pixel_to_world(original_pixel)
+        result_pixel = self.projector.world_to_pixel(geo)
 
         # Should be very close to original (allowing for floating point error)
         assert abs(result_pixel.x_px - original_pixel.x_px) < 1e-10
@@ -149,8 +149,8 @@ class TestAffine:
         original_pixel = Pixel(x_px=35.123, y_px=-50.456)  # Use valid coordinates
 
         for _ in range(10):
-            geo = self.projector.source_to_geographic(original_pixel)
-            original_pixel = self.projector.geographic_to_source(geo)
+            geo = self.projector.pixel_to_world(original_pixel)
+            original_pixel = self.projector.world_to_pixel(geo)
 
         # Should maintain precision
         assert abs(original_pixel.x_px - 35.123) < 1e-10
@@ -185,13 +185,13 @@ class TestAffine:
 
         # Should behave like identity transformation
         pixel = Pixel(x_px=45.0, y_px=-90.0)  # Use valid coordinates
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
 
         assert abs(geo.latitude_deg - pixel.y_px) < 1e-10  # latitude comes from y
         assert abs(geo.longitude_deg - pixel.x_px) < 1e-10  # longitude comes from x
 
-    def test_source_to_geo_roundtrip(self):
-        """Verify pixel->geo->pixel roundtrip for a full-world affine mapping.
+    def test_world_to_pixel_roundtrip(self):
+        """Verify pixel->world->pixel roundtrip for a full-world affine mapping.
 
         Goal: Test that a matrix mapping a 4096x4096 image to the full
         geographic range [-180,180] x [-90,90] roundtrips exactly and
@@ -227,19 +227,19 @@ class TestAffine:
         ]
 
         for src_pixel in src_corners:
-            geo = self.projector.source_to_geographic(src_pixel)
-            result_pixel = self.projector.geographic_to_source(geo)
+            geo = self.projector.pixel_to_world(src_pixel)
+            result_pixel = self.projector.world_to_pixel(geo)
             assert abs(result_pixel.x_px - src_pixel.x_px) < 1e-10
             assert abs(result_pixel.y_px - src_pixel.y_px) < 1e-10
 
         # Top-left (0,0) -> (-180, -90)
-        geo_tl = self.projector.source_to_geographic(Pixel(0.0, 0.0))
+        geo_tl = self.projector.pixel_to_world(Pixel(0.0, 0.0))
         assert abs(geo_tl.longitude_deg + 180) < 1e-10
         assert abs(geo_tl.latitude_deg + 90) < 1e-10
 
         # Center (W/2, H/2) -> (0, 0)
         src_center = Pixel(src_width / 2.0, src_height / 2.0)
-        geo_center = self.projector.source_to_geographic(src_center)
+        geo_center = self.projector.pixel_to_world(src_center)
         assert abs(geo_center.longitude_deg) < 1e-10
         assert abs(geo_center.latitude_deg) < 1e-10
 
@@ -256,14 +256,14 @@ class TestAffine:
 
         # Test with large pixel coordinates
         pixel = Pixel(x_px=50000.0, y_px=80000.0)
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
 
         # Should be scaled down to valid range
         assert -90 <= geo.latitude_deg <= 90
         assert -180 <= geo.longitude_deg <= 180
 
         # Roundtrip should work
-        result_pixel = self.projector.geographic_to_source(geo)
+        result_pixel = self.projector.world_to_pixel(geo)
         assert abs(result_pixel.x_px - pixel.x_px) < 1e-6
         assert abs(result_pixel.y_px - pixel.y_px) < 1e-6
 
@@ -293,7 +293,7 @@ class TestAffine:
 
         # Forward accuracy at GCPs - affine exactly reproduces a linear mapping
         for pixel, expected_geo in gcps:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
             assert abs(geo.latitude_deg - expected_geo.latitude_deg) < 1e-6, \
                 f"Lat error at {pixel}: {geo.latitude_deg:.8f} vs {expected_geo.latitude_deg}"
             assert abs(geo.longitude_deg - expected_geo.longitude_deg) < 1e-6, \
@@ -301,13 +301,13 @@ class TestAffine:
 
         # Roundtrip at GCP locations
         for pixel, _ in gcps:
-            geo = self.projector.source_to_geographic(pixel)
-            result_pixel = self.projector.geographic_to_source(geo)
+            geo = self.projector.pixel_to_world(pixel)
+            result_pixel = self.projector.world_to_pixel(geo)
             assert abs(result_pixel.x_px - pixel.x_px) < 1e-6
             assert abs(result_pixel.y_px - pixel.y_px) < 1e-6
 
         # Center pixel sanity check
-        center_geo = self.projector.source_to_geographic(Pixel(960.0, 540.0))
+        center_geo = self.projector.pixel_to_world(Pixel(960.0, 540.0))
         assert abs(center_geo.latitude_deg - 35.5) < 0.001
         assert abs(center_geo.longitude_deg - (-117.5)) < 0.001
 
@@ -352,7 +352,7 @@ class TestAffine:
         # Calculate residuals at GCP locations (same as transformation.py)
         residuals = []
         for pixel, geo in gcps:
-            pred = self.projector.geographic_to_source(geo)
+            pred = self.projector.world_to_pixel(geo)
             dx = pred.x_px - pixel.x_px
             dy = pred.y_px - pixel.y_px
             rms = (dx ** 2 + dy ** 2) ** 0.5

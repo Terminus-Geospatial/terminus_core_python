@@ -36,18 +36,18 @@ class TestIdentity:
         """Test is_identity property."""
         assert self.projector.is_identity is True
 
-    def test_source_to_geographic(self):
-        """Test source to geographic transformation."""
+    def test_pixel_to_world(self):
+        """Test pixel to world transformation."""
         pixel = Pixel(x_px=35.0, y_px=-118.0)  # Use valid coordinate ranges
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
 
         assert geo.latitude_deg == pixel.x_px
         assert geo.longitude_deg == pixel.y_px
 
-    def test_geographic_to_source(self):
-        """Test geographic to source transformation."""
+    def test_world_to_pixel(self):
+        """Test world to pixel transformation."""
         geo = Geographic(latitude_deg=35.0, longitude_deg=-118.0)  # Use valid coordinate ranges
-        pixel = self.projector.geographic_to_source(geo)
+        pixel = self.projector.world_to_pixel(geo)
 
         assert pixel.x_px == geo.latitude_deg
         assert pixel.y_px == geo.longitude_deg
@@ -72,8 +72,8 @@ class TestIdentity:
         original_pixel = Pixel(x_px=35.123, y_px=-118.456)  # Use valid coordinates
 
         # Forward and inverse transformation
-        geo = self.projector.source_to_geographic(original_pixel)
-        result_pixel = self.projector.geographic_to_source(geo)
+        geo = self.projector.pixel_to_world(original_pixel)
+        result_pixel = self.projector.world_to_pixel(geo)
 
         # Should be exactly the same
         assert result_pixel.x_px == original_pixel.x_px
@@ -86,8 +86,8 @@ class TestIdentity:
 
         # Perform multiple roundtrips
         for _ in range(10):
-            geo = self.projector.source_to_geographic(current_pixel)
-            current_pixel = self.projector.geographic_to_source(geo)
+            geo = self.projector.pixel_to_world(current_pixel)
+            current_pixel = self.projector.world_to_pixel(geo)
 
         # Should maintain precision exactly
         assert current_pixel.x_px == original_pixel.x_px
@@ -97,18 +97,18 @@ class TestIdentity:
         """Test edge cases and boundary conditions."""
         # Test with zero coordinates
         pixel = Pixel(x_px=0.0, y_px=0.0)
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
         assert geo.latitude_deg == 0.0
         assert geo.longitude_deg == 0.0
 
         # Test with negative coordinates (in valid range)
         pixel = Pixel(x_px=-45.0, y_px=-90.0)
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
         assert geo.latitude_deg == -45.0
         assert geo.longitude_deg == -90.0
 
         # Test with very small coordinates
         pixel = Pixel(x_px=1e-10, y_px=1e-10)
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
         assert abs(geo.latitude_deg - 1e-10) < 1e-15
         assert abs(geo.longitude_deg - 1e-10) < 1e-15

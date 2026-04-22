@@ -109,23 +109,23 @@ class TestRPC:
         with pytest.raises(ValueError, match="rpc_coeffs required"):
             self.projector.update_model()
 
-    def test_source_to_geographic_no_model(self):
+    def test_pixel_to_world_no_model(self):
         """Verify error when forward transforming without loaded coefficients.
 
-        Goal: Ensure source_to_geographic() raises ValueError if called before
+        Goal: Ensure pixel_to_world() raises ValueError if called before
         update_model(), protecting against undefined behavior.
         """
         with pytest.raises(ValueError, match="RPC coefficients not set"):
-            self.projector.source_to_geographic(Pixel(100, 200))
+            self.projector.pixel_to_world(Pixel(100, 200))
 
-    def test_geographic_to_source_no_model(self):
+    def test_world_to_pixel_no_model(self):
         """Verify error when inverse transforming without loaded coefficients.
 
-        Goal: Ensure geographic_to_source() raises ValueError if called before
+        Goal: Ensure world_to_pixel() raises ValueError if called before
         update_model(), protecting against undefined behavior.
         """
         with pytest.raises(ValueError, match="RPC coefficients not set"):
-            self.projector.geographic_to_source(Geographic(35.0, -118.0))
+            self.projector.world_to_pixel(Geographic(35.0, -118.0))
 
     def test_identity_rpc_transformation(self):
         """Verify 1:1 linear mapping from pixel to geographic coordinates.
@@ -139,7 +139,7 @@ class TestRPC:
 
         # Test pixel to geographic
         pixel = Pixel(100.0, 35.0)  # Use latitude in valid range
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
 
         # With identity coefficients, should be approximately the same
         assert abs(geo.latitude_deg - pixel.y_px) < 1e-6
@@ -157,7 +157,7 @@ class TestRPC:
 
         # Test geographic to pixel
         geo = Geographic(35.0, 100.0)  # Use valid latitude
-        pixel = self.projector.geographic_to_source(geo)
+        pixel = self.projector.world_to_pixel(geo)
 
         # With identity coefficients, should be approximately the same
         assert abs(pixel.x_px - geo.longitude_deg) < 1e-6
@@ -173,8 +173,8 @@ class TestRPC:
         self.projector.update_model(rpc_coeffs=self.rpc_coeffs)
 
         original_pixel = Pixel(150.5, 45.0)  # Use valid latitude
-        geo = self.projector.source_to_geographic(original_pixel)
-        result_pixel = self.projector.geographic_to_source(geo)
+        geo = self.projector.pixel_to_world(original_pixel)
+        result_pixel = self.projector.world_to_pixel(geo)
 
         # Should be very close to original
         assert abs(result_pixel.x_px - original_pixel.x_px) < 1e-6
@@ -254,7 +254,7 @@ class TestRPC:
         ]
 
         for pixel, expected_lat, expected_lon in test_cases:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
             assert abs(geo.latitude_deg - expected_lat) < 1e-6, \
                 f"Lat error at {pixel}: got {geo.latitude_deg}, expected {expected_lat}"
             assert abs(geo.longitude_deg - expected_lon) < 1e-6, \
@@ -290,7 +290,7 @@ class TestRPC:
 
         # Test transformation with complex coefficients
         pixel = Pixel(256.0, 256.0)  # Center of image
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
 
         # Should get reasonable geographic coordinates
         assert -180 <= geo.longitude_deg <= 180
@@ -358,17 +358,17 @@ class TestRPC:
 
         for pixel, expected_geo in test_cases:
             # Forward transformation
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
             assert abs(geo.latitude_deg - expected_geo.latitude_deg) < 1e-6
             assert abs(geo.longitude_deg - expected_geo.longitude_deg) < 1e-6
 
             # Inverse transformation
-            result_pixel = self.projector.geographic_to_source(expected_geo)
+            result_pixel = self.projector.world_to_pixel(expected_geo)
             assert abs(result_pixel.x_px - pixel.x_px) < 1e-6
             assert abs(result_pixel.y_px - pixel.y_px) < 1e-6
 
             # Roundtrip verification
-            roundtrip_geo = self.projector.source_to_geographic(result_pixel)
+            roundtrip_geo = self.projector.pixel_to_world(result_pixel)
             assert abs(roundtrip_geo.latitude_deg - expected_geo.latitude_deg) < 1e-6
             assert abs(roundtrip_geo.longitude_deg - expected_geo.longitude_deg) < 1e-6
 
@@ -453,7 +453,7 @@ class TestRPC:
 
         # Test 1: Verify exact reconstruction at GCPs
         for pixel, expected_geo in control_points:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
 
             # At GCPs, forward error should be very small (sub-pixel equivalent in degrees)
             lat_error = abs(geo.latitude_deg - expected_geo.latitude_deg)
@@ -471,7 +471,7 @@ class TestRPC:
         ]
 
         for pixel in test_pixels:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
 
             # Verify coordinates are reasonable (within expected range)
             assert 37.0 <= geo.latitude_deg <= 43.0, f"Interpolated lat {geo.latitude_deg} out of range for {pixel}"
@@ -479,7 +479,7 @@ class TestRPC:
 
         # Test 3: Basic sanity check - center pixel should give center coordinates
         center_pixel = Pixel(2048.0, 2048.0)
-        center_geo = self.projector.source_to_geographic(center_pixel)
+        center_geo = self.projector.pixel_to_world(center_pixel)
 
         # Center should be near (40.0, -105.0) within 0.01 degrees (~1km)
         assert abs(center_geo.latitude_deg - 40.0) < 0.01
@@ -538,7 +538,7 @@ class TestRPC:
 
         # Test 1: Forward accuracy at each GCP location
         for pixel, expected_geo in gcps:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
             lat_err = abs(geo.latitude_deg - expected_geo.latitude_deg)
             lon_err = abs(geo.longitude_deg - expected_geo.longitude_deg)
 
@@ -549,8 +549,8 @@ class TestRPC:
 
         # Test 2: Roundtrip - pixel -> geo -> pixel at GCP locations
         for original_pixel, _ in gcps:
-            geo = self.projector.source_to_geographic(original_pixel)
-            recovered_pixel = self.projector.geographic_to_source(geo)
+            geo = self.projector.pixel_to_world(original_pixel)
+            recovered_pixel = self.projector.world_to_pixel(geo)
 
             x_err = abs(recovered_pixel.x_px - original_pixel.x_px)
             y_err = abs(recovered_pixel.y_px - original_pixel.y_px)
@@ -561,6 +561,6 @@ class TestRPC:
                 f"Roundtrip y error {y_err:.4f} px at pixel {original_pixel}"
 
         # Test 3: Center pixel sanity check - center should map near scene center
-        center_geo = self.projector.source_to_geographic(Pixel(2048.0, 2048.0))
+        center_geo = self.projector.pixel_to_world(Pixel(2048.0, 2048.0))
         assert abs(center_geo.latitude_deg - lat_center) < 0.01
         assert abs(center_geo.longitude_deg - lon_center) < 0.01

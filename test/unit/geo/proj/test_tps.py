@@ -154,15 +154,15 @@ class TestTPS:
         with pytest.raises(ValueError, match="at least 3 control points"):
             self.projector.update_model(control_points=[(Pixel(0, 0), Geographic(0, 0))])
 
-    def test_source_to_geographic_no_model(self):
+    def test_pixel_to_world_no_model(self):
         """Test error when transforming without model."""
         with pytest.raises(ValueError, match="TPS model not fitted"):
-            self.projector.source_to_geographic(Pixel(50, 50))
+            self.projector.pixel_to_world(Pixel(50, 50))
 
-    def test_geographic_to_source_no_model(self):
+    def test_world_to_pixel_no_model(self):
         """Test error when inverse transforming without model."""
         with pytest.raises(ValueError, match="TPS model not fitted"):
-            self.projector.geographic_to_source(Geographic(0.5, 0.5))
+            self.projector.world_to_pixel(Geographic(0.5, 0.5))
 
     def test_simple_tps_transformation(self):
         """Test TPS transformation with simple control points."""
@@ -178,7 +178,7 @@ class TestTPS:
 
         # Test transformation at control points (should be exact - TPS interpolates perfectly through control points)
         for pixel, expected_geo in test_control_points:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
             # Should be essentially exact at control points
             assert abs(geo.latitude_deg - expected_geo.latitude_deg) < 1e-6
             assert abs(geo.longitude_deg - expected_geo.longitude_deg) < 1e-6
@@ -197,7 +197,7 @@ class TestTPS:
 
         # Test at center point
         center_pixel = Pixel(480.0, 270.0)  # Center of the test area
-        geo = self.projector.source_to_geographic(center_pixel)
+        geo = self.projector.pixel_to_world(center_pixel)
 
         # Should be approximately at center of geographic space
         assert abs(geo.latitude_deg - 35.25) < 0.1  # Center latitude
@@ -206,7 +206,7 @@ class TestTPS:
     def test_inverse_transformation(self):
         """Verify geo->pixel inverse at control point locations.
 
-        Goal: Test that geographic_to_source() recovers pixel coordinates
+        Goal: Test that world_to_pixel() recovers pixel coordinates
         at the exact control point geographic values.
         With Newton iteration, should be sub-pixel accurate at control points.
         """
@@ -220,7 +220,7 @@ class TestTPS:
         self.projector.update_model(control_points=test_control_points)
 
         for pixel, geo in test_control_points:
-            result_pixel = self.projector.geographic_to_source(geo)
+            result_pixel = self.projector.world_to_pixel(geo)
             assert abs(result_pixel.x_px - pixel.x_px) < 1.0
             assert abs(result_pixel.y_px - pixel.y_px) < 1.0
 
@@ -247,12 +247,12 @@ class TestTPS:
         ]
 
         for original_pixel in test_pixels:
-            geo = self.projector.source_to_geographic(original_pixel)
+            geo = self.projector.pixel_to_world(original_pixel)
 
             assert 34.5 <= geo.latitude_deg <= 36.0
             assert -119.0 <= geo.longitude_deg <= -116.5
 
-            result_pixel = self.projector.geographic_to_source(geo)
+            result_pixel = self.projector.world_to_pixel(geo)
             assert abs(result_pixel.x_px - original_pixel.x_px) < 1.0
             assert abs(result_pixel.y_px - original_pixel.y_px) < 1.0
 
@@ -276,8 +276,8 @@ class TestTPS:
         self.projector.update_model(control_points=self.control_points)
 
         original_pixel = Pixel(25.0, 75.0)
-        geo = self.projector.source_to_geographic(original_pixel)
-        result_pixel = self.projector.geographic_to_source(geo)
+        geo = self.projector.pixel_to_world(original_pixel)
+        result_pixel = self.projector.world_to_pixel(geo)
 
         assert abs(result_pixel.x_px - original_pixel.x_px) < 1.0
         assert abs(result_pixel.y_px - original_pixel.y_px) < 1.0
@@ -300,7 +300,7 @@ class TestTPS:
 
         # Test transformation with more control points
         test_pixel = Pixel(25.0, 25.0)
-        geo = self.projector.source_to_geographic(test_pixel)
+        geo = self.projector.pixel_to_world(test_pixel)
 
         # Should get reasonable results
         assert -1.0 <= geo.latitude_deg <= 2.0
@@ -319,7 +319,7 @@ class TestTPS:
 
         # Test transformation
         test_pixel = Pixel(75.0, 50.0)
-        geo = self.projector.source_to_geographic(test_pixel)
+        geo = self.projector.pixel_to_world(test_pixel)
 
         # Should get reasonable results
         assert -1.0 <= geo.latitude_deg <= 3.0
@@ -373,7 +373,7 @@ class TestTPS:
 
         # TPS passes through control points exactly
         for pixel, expected_geo in identity_points:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
             assert abs(geo.latitude_deg - expected_geo.latitude_deg) < 1e-10
             assert abs(geo.longitude_deg - expected_geo.longitude_deg) < 1e-10
 
@@ -392,14 +392,14 @@ class TestTPS:
         ]
 
         for pixel, expected_lat, expected_lon in test_cases:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
 
             assert abs(geo.latitude_deg - expected_lat) < 0.01, \
                 f"Lat error at {pixel}: got {geo.latitude_deg:.4f}, expected {expected_lat}"
             assert abs(geo.longitude_deg - expected_lon) < 0.01, \
                 f"Lon error at {pixel}: got {geo.longitude_deg:.4f}, expected {expected_lon}"
 
-            result_pixel = self.projector.geographic_to_source(
+            result_pixel = self.projector.world_to_pixel(
                 Geographic(expected_lat, expected_lon)
             )
             assert abs(result_pixel.x_px - pixel.x_px) < 2.0
@@ -437,7 +437,7 @@ class TestTPS:
 
         # TPS passes through all control points exactly
         for pixel, expected_geo in complex_points:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
             assert abs(geo.latitude_deg - expected_geo.latitude_deg) < 1e-8, \
                 f"Forward error at control point {pixel}"
             assert abs(geo.longitude_deg - expected_geo.longitude_deg) < 1e-8, \
@@ -453,14 +453,14 @@ class TestTPS:
         ]
 
         for pixel in test_pixels:
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
 
             assert 34.8 <= geo.latitude_deg <= 36.2, \
                 f"Forward lat {geo.latitude_deg:.4f} out of expected range"
             assert -118.2 <= geo.longitude_deg <= -116.8, \
                 f"Forward lon {geo.longitude_deg:.4f} out of expected range"
 
-            result_pixel = self.projector.geographic_to_source(geo)
+            result_pixel = self.projector.world_to_pixel(geo)
             assert abs(result_pixel.x_px - pixel.x_px) < 2.0, \
                 f"Roundtrip x error {abs(result_pixel.x_px - pixel.x_px):.4f} at {pixel}"
             assert abs(result_pixel.y_px - pixel.y_px) < 2.0, \
@@ -482,7 +482,7 @@ class TestTPS:
         test_pixel = Pixel(0.5, 0.25)
 
         # Expected: latitude = 3 * 0.25 = 0.75, longitude = 2 * 0.5 = 1.0
-        geo = self.projector.source_to_geographic(test_pixel)
+        geo = self.projector.pixel_to_world(test_pixel)
 
         # TPS with 4 bilinear corner points reproduces linear mapping exactly
         assert abs(geo.latitude_deg - 0.75) < 1e-6
@@ -495,6 +495,8 @@ class TestTPS:
             pixel = Pixel(test_x, test_y)
 
             # Forward transformation
-            geo = self.projector.source_to_geographic(pixel)
+            geo = self.projector.pixel_to_world(pixel)
 
-            # Should follow linear pattern approximately
+            # Should follow linear pattern approximately (lat = 3*y, lon = 2*x)
+            assert abs(geo.latitude_deg - 3.0 * test_y) < 1e-6
+            assert abs(geo.longitude_deg - 2.0 * test_x) < 1e-6

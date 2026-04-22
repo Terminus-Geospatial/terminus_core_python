@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Self
 
 # Third-Party Libraries
 import numpy as np
@@ -113,13 +113,13 @@ class Projector(ABC):
         self._source_image_attrs: dict[str, Any] = {}
 
     @abstractmethod
-    def source_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform source image pixel coordinates to geographic coordinates."""
+    def pixel_to_world(self, pixel: Pixel) -> Geographic:
+        """Transform source image pixel coordinates to world (geographic) coordinates."""
         pass
 
     @abstractmethod
-    def geographic_to_source(self, geo: Geographic) -> Pixel:
-        """Transform geographic coordinates to source image pixel coordinates."""
+    def world_to_pixel(self, geo: Geographic) -> Pixel:
+        """Transform world (geographic) coordinates to source image pixel coordinates."""
         pass
 
 
@@ -128,27 +128,44 @@ class Projector(ABC):
         """Update the transformation model with new parameters."""
         pass
 
+    @abstractmethod
+    def to_params(self) -> np.ndarray:
+        """Extract optimizable parameters from the model.
+
+        Returns:
+            1D array of current model parameters.
+        """
+        pass
+
+    @abstractmethod
+    def from_params(self, params: np.ndarray) -> Self:
+        """Create a new model instance with modified parameters.
+
+        Args:
+            params: 1D array of model parameters (same structure as to_params output)
+
+        Returns:
+            New instance of the same type with the specified parameters.
+        """
+        pass
+
+    @abstractmethod
     def serialize_model_data(self) -> dict:
         """Serialize the transformation model data to a dict for persistence.
 
         Returns:
             Dict containing model-specific data (e.g., transform matrices, coefficients).
-
-        Raises:
-            NotImplementedError: If subclass does not override this method.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} does not support model data serialization")
+        pass
 
+    @abstractmethod
     def deserialize_model_data(self, data: dict) -> None:
         """Deserialize model data from a dict and apply to this projector.
 
         Args:
             data: Dict containing model-specific data as returned by serialize_model_data.
-
-        Raises:
-            NotImplementedError: If subclass does not override this method.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} does not support model data deserialization")
+        pass
 
     @property
     @abstractmethod

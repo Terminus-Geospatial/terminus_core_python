@@ -16,6 +16,9 @@
 Identity projector implementation
 """
 
+# Python Standard Libraries
+from typing import Self, override
+
 # Third-Party Libraries
 import numpy as np
 
@@ -30,23 +33,38 @@ class Identity(Projector):
     def __init__(self):
         super().__init__()
 
-    def source_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Identity: pixel coordinates are treated as geographic (lat/lon)."""
+    @override
+    def pixel_to_world(self, pixel: Pixel) -> Geographic:
+        """Identity: pixel coordinates are treated as world/geographic (lat/lon)."""
         return Geographic(latitude_deg=pixel.x_px, longitude_deg=pixel.y_px)
 
-    def geographic_to_source(self, geo: Geographic) -> Pixel:
-        """Identity: geographic coordinates are treated as pixel coordinates."""
+    @override
+    def world_to_pixel(self, geo: Geographic) -> Pixel:
+        """Identity: world/geographic coordinates are treated as pixel coordinates."""
         return Pixel(x_px=geo.latitude_deg, y_px=geo.longitude_deg)
 
 
+    @override
     def update_model(self, **kwargs) -> None:
         """Identity model doesn't need updates."""
         pass
 
+    @override
+    def to_params(self) -> np.ndarray:
+        """Not supported for Identity — raises NotImplementedError."""
+        raise NotImplementedError("Identity does not support parameter extraction for optimization")
+
+    @override
+    def from_params(self, params: np.ndarray) -> Self:
+        """Not supported for Identity — raises NotImplementedError."""
+        raise NotImplementedError("Identity does not support parameter-based construction")
+
     @property
+    @override
     def transformation_type(self) -> Transformation_Type:
         return Transformation_Type.IDENTITY
 
+    @override
     def image_bounds(self) -> list[Pixel]:
         """Identity has no intrinsic image dimensions.
 
@@ -64,6 +82,7 @@ class Identity(Projector):
             Pixel(x_px=bounds[0], y_px=bounds[3]),  # Bottom-left
         ]
 
+    @override
     def geographic_bounds(self) -> list[Geographic]:
         """Return geographic bounding polygon vertices.
 
@@ -73,9 +92,11 @@ class Identity(Projector):
         return [self.source_to_geographic(pixel) for pixel in image_corners]
 
     @property
+    @override
     def is_identity(self) -> bool:
         return True
 
+    @override
     def serialize_model_data(self) -> dict:
         """Serialize identity model data (empty, no model state).
 
@@ -84,6 +105,7 @@ class Identity(Projector):
         """
         return {}
 
+    @override
     def deserialize_model_data(self, data: dict) -> None:
         """Deserialize identity model data (no-op, no model state).
 
@@ -92,6 +114,7 @@ class Identity(Projector):
         """
         pass
 
+    @override
     def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,
                                    src_w: int, src_h: int) -> tuple[np.ndarray, np.ndarray]:
         """Compute remap coordinates for identity transformation.

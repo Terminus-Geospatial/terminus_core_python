@@ -89,6 +89,7 @@ References
 
 # Python Standard Libraries
 import math
+from typing import Self, override
 
 # Third-Party Libraries
 import numpy as np
@@ -155,8 +156,9 @@ class TPS(Projector):
         self._linear_terms_x: tuple[float, float, float] = (0.0, 0.0, 0.0)
         self._linear_terms_y: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
-    def source_to_geographic(self, pixel: Pixel) -> Geographic:
-        """Transform source image pixel to geographic coordinates via TPS.
+    @override
+    def pixel_to_world(self, pixel: Pixel) -> Geographic:
+        """Transform source image pixel to world (geographic) coordinates via TPS.
 
         Evaluates the interpolant::
 
@@ -170,7 +172,7 @@ class TPS(Projector):
             pixel: Source image pixel coordinates (x_px, y_px).
 
         Returns:
-            Geographic coordinates (latitude_deg, longitude_deg).
+            World (geographic) coordinates (latitude_deg, longitude_deg).
 
         Raises:
             ValueError: If ``update_model`` has not been called.
@@ -207,8 +209,9 @@ class TPS(Projector):
 
         return Geographic(latitude_deg=lat, longitude_deg=lon)
 
-    def geographic_to_source(self, geo: Geographic) -> Pixel:
-        """Transform geographic coordinates to source image pixel via Newton iteration.
+    @override
+    def world_to_pixel(self, geo: Geographic) -> Pixel:
+        """Transform world (geographic) coordinates to source image pixel via Newton iteration.
 
         The TPS inverse has no closed form, so this method solves the non-linear
         system f(x,y) = (lon_target, lat_target) iteratively::
@@ -262,7 +265,7 @@ class TPS(Projector):
         tol = 1e-7  # convergence in degrees
 
         for _ in range(max_iters):
-            geo_est = self.source_to_geographic(Pixel(x, y))
+            geo_est = self.pixel_to_world(Pixel(x, y))
             dlat = target_lat - geo_est.latitude_deg
             dlon = target_lon - geo_est.longitude_deg
 
@@ -270,8 +273,8 @@ class TPS(Projector):
                 break
 
             # Numerical Jacobian via forward finite differences
-            geo_dx = self.source_to_geographic(Pixel(x + eps, y))
-            geo_dy = self.source_to_geographic(Pixel(x, y + eps))
+            geo_dx = self.pixel_to_world(Pixel(x + eps, y))
+            geo_dy = self.pixel_to_world(Pixel(x, y + eps))
 
             j00 = (geo_dx.latitude_deg - geo_est.latitude_deg) / eps   # dlat/dx
             j01 = (geo_dy.latitude_deg - geo_est.latitude_deg) / eps   # dlat/dy
@@ -288,10 +291,10 @@ class TPS(Projector):
 
         return Pixel(x_px=x, y_px=y)
 
-    def source_to_geographic_batch(self, pixels: np.ndarray) -> np.ndarray:
-        """Transform multiple source pixels to geographic coordinates in batch.
+    def pixel_to_world_batch(self, pixels: np.ndarray) -> np.ndarray:
+        """Transform multiple source pixels to world (geographic) coordinates in batch.
 
-        Vectorized version of source_to_geographic for efficient batch processing.
+        Vectorized version of pixel_to_world for efficient batch processing.
         Uses numpy broadcasting to compute radial basis functions for all pixels
         and control points simultaneously.
 
@@ -346,6 +349,7 @@ class TPS(Projector):
         return np.column_stack([lon, lat])
 
 
+    @override
     def update_model(self, **kwargs) -> None:
         """Fit the TPS model to a set of Ground Control Points.
 
@@ -460,14 +464,27 @@ class TPS(Projector):
         """
         self.update_model(control_points=gcps)
 
+    @override
+    def to_params(self) -> np.ndarray:
+        """Not supported for TPS — raises NotImplementedError."""
+        raise NotImplementedError("TPS does not support parameter extraction for optimization")
+
+    @override
+    def from_params(self, params: np.ndarray) -> Self:
+        """Not supported for TPS — raises NotImplementedError."""
+        raise NotImplementedError("TPS does not support parameter-based construction")
+
     @property
+    @override
     def transformation_type(self) -> Transformation_Type:
         return Transformation_Type.TPS
 
     @property
+    @override
     def is_identity(self) -> bool:
         return False
 
+    @override
     def serialize_model_data(self) -> dict:
         """Serialize the TPS model data to a dict.
 
@@ -494,6 +511,7 @@ class TPS(Projector):
             'linear_terms_y': self._linear_terms_y,
         }
 
+    @override
     def deserialize_model_data(self, data: dict) -> None:
         """Deserialize TPS model data from a dict.
 
@@ -519,6 +537,7 @@ class TPS(Projector):
         self._linear_terms_x = tuple(data['linear_terms_x'])
         self._linear_terms_y = tuple(data['linear_terms_y'])
 
+    @override
     def image_bounds(self) -> list[Pixel]:
         """Return image bounding box as 4 corner pixels.
 
@@ -540,6 +559,7 @@ class TPS(Projector):
             Pixel(x_px=min_x, y_px=max_y),  # Bottom-left
         ]
 
+    @override
     def geographic_bounds(self) -> list[Geographic]:
         """Return geographic bounding polygon vertices.
 
@@ -548,6 +568,7 @@ class TPS(Projector):
         image_corners = self.image_bounds()
         return [self.source_to_geographic(pixel) for pixel in image_corners]
 
+    @override
     def compute_remap_coordinates(self, lon_mesh: np.ndarray, lat_mesh: np.ndarray,
                                    src_w: int, src_h: int) -> tuple[np.ndarray, np.ndarray]:
         """Compute remap coordinates for TPS transformation.
@@ -580,7 +601,7 @@ class TPS(Projector):
         src_pixels = np.column_stack([src_x_mesh.ravel(), src_y_mesh.ravel()])
 
         # Batch forward TPS evaluation (vectorized)
-        geo_coords = self.source_to_geographic_batch(src_pixels)  # (N, 2) [lon, lat]
+        geo_coords = self.pixel_to_world_batch(src_pixels)  # (N, 2) [lon, lat]
         lons_sparse = geo_coords[:, 0]
         lats_sparse = geo_coords[:, 1]
 

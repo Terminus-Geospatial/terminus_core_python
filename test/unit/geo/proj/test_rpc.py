@@ -140,21 +140,21 @@ class TestRPC:
         with pytest.raises(ValueError, match="At least 9 GCPs required"):
             self.projector.solve_from_gcps(self.linear_gcps[:3])
 
-    def test_source_to_geographic_no_model(self):
+    def test_pixel_to_world_no_model(self):
         """Test error when transforming without model."""
         with pytest.raises(ValueError, match="RPC coefficients not set"):
-            self.projector.source_to_geographic(Pixel(50, 50))
+            self.projector.pixel_to_world(Pixel(50, 50))
 
-    def test_geographic_to_source_no_model(self):
+    def test_world_to_pixel_no_model(self):
         """Test error when inverse transforming without model."""
         with pytest.raises(ValueError, match="RPC coefficients not set"):
-            self.projector.geographic_to_source(Geographic(35.5, -117.5))
+            self.projector.world_to_pixel(Geographic(35.5, -117.5))
 
-    def test_geographic_to_source_batch_no_model(self):
+    def test_world_to_pixel_batch_no_model(self):
         """Test error when batch inverse transforming without model."""
         with pytest.raises(ValueError, match="RPC coefficients not set"):
             geo_coords = np.array([[-117.5, 35.5]])
-            self.projector.geographic_to_source_batch(geo_coords)
+            self.projector.world_to_pixel_batch(geo_coords)
 
     def test_simple_rpc_transformation(self):
         """Test RPC transformation with simple coefficients."""
@@ -183,29 +183,29 @@ class TestRPC:
 
         # Test at center pixel
         pixel = Pixel(960.0, 540.0)
-        geo = self.projector.source_to_geographic(pixel)
+        geo = self.projector.pixel_to_world(pixel)
 
         # Should map to center geographic coordinates
         assert abs(geo.latitude_deg - 35.5) < 0.01
         assert abs(geo.longitude_deg - (-117.5)) < 0.01
 
     def test_inverse_transformation(self):
-        """Test geographic_to_source transformation."""
+        """Test world_to_pixel transformation."""
         self.projector.solve_from_gcps(self.linear_gcps)
 
         # Check with loose tolerance since RPC fitting is approximate
         for pixel, geo in self.linear_gcps:
-            result_pixel = self.projector.geographic_to_source(geo)
+            result_pixel = self.projector.world_to_pixel(geo)
             assert abs(result_pixel.x_px - pixel.x_px) < 500.0
             assert abs(result_pixel.y_px - pixel.y_px) < 500.0
 
     def test_inverse_transformation_batch(self):
-        """Test geographic_to_source_batch vectorized transformation."""
+        """Test world_to_pixel_batch vectorized transformation."""
         self.projector.solve_from_gcps(self.linear_gcps)
 
         # Create batch of geographic coordinates
         geo_coords = np.array([[geo.longitude_deg, geo.latitude_deg] for _, geo in self.linear_gcps])
-        pixel_coords = self.projector.geographic_to_source_batch(geo_coords)
+        pixel_coords = self.projector.world_to_pixel_batch(geo_coords)
 
         # Should return pixel coordinates
         assert pixel_coords.shape == (len(self.linear_gcps), 2)
@@ -227,12 +227,12 @@ class TestRPC:
         ]
 
         for original_pixel in test_pixels:
-            geo = self.projector.source_to_geographic(original_pixel)
+            geo = self.projector.pixel_to_world(original_pixel)
 
             assert 34.5 <= geo.latitude_deg <= 36.0
             assert -119.0 <= geo.longitude_deg <= -116.5
 
-            result_pixel = self.projector.geographic_to_source(geo)
+            result_pixel = self.projector.world_to_pixel(geo)
             # Roundtrip should be reasonably accurate (RPC inverse is direct)
             # Note: RPC fitting may not be exact due to polynomial approximation
             assert abs(result_pixel.x_px - original_pixel.x_px) < 100.0
@@ -252,8 +252,8 @@ class TestRPC:
 
         # Test at GCP locations (should be reasonably accurate)
         for pixel, geo in self.realistic_gcps[:5]:  # Test first 5
-            result_geo = self.projector.source_to_geographic(pixel)
-            result_pixel = self.projector.geographic_to_source(geo)
+            result_geo = self.projector.pixel_to_world(pixel)
+            result_pixel = self.projector.world_to_pixel(geo)
 
             # Forward transformation accuracy
             assert abs(result_geo.latitude_deg - geo.latitude_deg) < 0.01
@@ -277,12 +277,12 @@ class TestRPC:
 
         # Single-point transformations
         single_results = [
-            self.projector.geographic_to_source(geo) for geo in test_geos
+            self.projector.world_to_pixel(geo) for geo in test_geos
         ]
 
         # Batch transformation
         geo_coords = np.array([[geo.longitude_deg, geo.latitude_deg] for geo in test_geos])
-        batch_results = self.projector.geographic_to_source_batch(geo_coords)
+        batch_results = self.projector.world_to_pixel_batch(geo_coords)
 
         # Compare results
         for _i, (single, batch) in enumerate(zip(single_results, batch_results, strict=False)):
@@ -380,8 +380,8 @@ class TestRPC:
 
         # Just test that transformations work without errors
         pixel = Pixel(960.0, 540.0)
-        geo = self.projector.source_to_geographic(pixel)
-        result_pixel = self.projector.geographic_to_source(geo)
+        geo = self.projector.pixel_to_world(pixel)
+        result_pixel = self.projector.world_to_pixel(geo)
 
         # Verify the transformations return valid values
         assert geo.latitude_deg is not None
